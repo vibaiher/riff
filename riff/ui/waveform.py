@@ -58,12 +58,15 @@ def render_vbars(
         hi = max(hi, lo + 1)
         bars.append(max(data[lo:hi]))
 
+    MIN_PEAK = 0.05  # minimum amplitude reference (~-26 dBFS)
     peak = max(bars)
     if peak < 1e-7:
         return "\n".join([empty] * (height - 1) + ["─" * n_cols])
 
-    # Normalize 0..1
-    bars = [b / peak for b in bars]
+    # Normalize 0..1, using a minimum reference to avoid inflating quiet signals
+    norm_ref = max(peak, MIN_PEAK)
+    bars = [b / norm_ref for b in bars]
+    bars = [min(b, 1.0) for b in bars]
 
     # Build grid top-to-bottom.  Row 0 = top (highest amplitude),
     # row height-1 = bottom (always filled if amp > 0).
