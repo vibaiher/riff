@@ -19,6 +19,7 @@ from __future__ import annotations
 import collections
 import queue
 import threading
+import time
 from typing import Optional
 
 import librosa
@@ -47,7 +48,8 @@ _NOTE_CHORDS: dict[str, list[str]] = {
 }
 
 # Below this level pitch detection is skipped (avoids noise false positives)
-SILENCE_DB = -45.0
+# -65 dBFS accommodates room/speaker capture (mic picking up iPad through air)
+SILENCE_DB = -65.0
 
 # Number of consecutive blocks to accumulate before running pyin
 # 4 × 1024 = 4096 samples ≈ 93 ms — good balance of latency vs accuracy
@@ -112,11 +114,13 @@ class AudioAnalyzer:
         analyzer.stop()
     """
 
-    def __init__(self, state, audio_queue: queue.Queue) -> None:
+    def __init__(self, state, audio_queue: queue.Queue, note_queue: Optional[queue.Queue] = None) -> None:
         self.state = state
         self._queue = audio_queue
+        self._note_queue = note_queue
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._last_forwarded_note: Optional[str] = None
 
         # Accumulation buffers
         self._pitch_buf:    list[np.ndarray]      = []
@@ -124,6 +128,8 @@ class AudioAnalyzer:
         self._waveform_buf: collections.deque     = collections.deque(maxlen=WAVEFORM_BUFFER_SAMPLES)
 
         self._bpm_counter = 0
+        self._last_candidate_note: Optional[str] = None   # for 2-frame confirmation
+        self._last_forward_time: float = 0.0              # for re-trigger on sustained notes
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -210,9 +216,32 @@ class AudioAnalyzer:
 
         self.state.update(**updates)
 
-        # ── Phase 2 hook ──────────────────────────────────────────────────────
-        # TODO: forward updates["note"], updates.get("bpm"), db to MelodyRNN
-        # and write state.riff_note / state.riff_active / state.riff_waveform
+        # ── Phase 2 hook: forward note events to RiffResponder ────────────────
+        if self._note_queue is not None:
+            current_note = updates.get("note")
+            if current_note and current_note != "—":
+                now = time.time()
+                note_changed = current_note != self._last_forwarded_note
+                # Confirmation: require same note in 2 consecutive pitch windows
+                confirmed = (current_note == self._last_candidate_note)
+                self._last_candidate_note = current_note
+                # Re-trigger: resend same note if sustained beyond 1.5s
+                retrigger = (current_note == self._last_forwarded_note
+                             and now - self._last_forward_time > 1.5)
+                if (note_changed and confirmed) or retrigger:
+                    self._last_forwarded_note = current_note
+                    self._last_forward_time = now
+                    from ..ai.responder import NoteEvent
+                    try:
+                        self._note_queue.put_nowait(NoteEvent(
+                            note=current_note,
+                            octave=updates.get("octave", 4),
+                            bpm=updates.get("bpm", 0.0) or self.state.snapshot()["bpm"],
+                            db=db,
+                            time=now,
+                        ))
+                    except queue.Full:
+                        pass
 
     def _detect_pitch(self, audio: np.ndarray) -> Optional[float]:
         """

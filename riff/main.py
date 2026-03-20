@@ -6,20 +6,31 @@ Entry point.  Run with:
     uv run riff           # with uv
 
 Phase 1: listen, analyse, and visualise.
-Phase 2 (next): plug in MelodyRNN after analyzer.start() and before display.run().
+Phase 2: Markov melodic responder wired in.
 """
 from __future__ import annotations
 
+import argparse
+import queue
 import signal
+import warnings
+
+warnings.filterwarnings("ignore", message="Couldn't find ffmpeg", category=RuntimeWarning)
 import sys
 
-from .audio.capture  import AudioCapture
+from .audio.capture  import AudioCapture, FilePlayback
 from .audio.analyzer import AudioAnalyzer
+from .ai.responder   import RiffResponder
+from .ai.magenta_gen import MagentaMelodyGen, MAGENTA_AVAILABLE
 from .core.state     import AppState
 from .ui.display     import RiffDisplay
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(prog="riff", description="RIFF — real-time jam companion")
+    parser.add_argument("--file", metavar="PATH", help="audio file to jam over (mp3, flac, wav, …)")
+    args = parser.parse_args()
+
     state = AppState()
 
     # ── Clean shutdown on SIGINT / SIGTERM ────────────────────────────────────
@@ -30,11 +41,21 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _shutdown)
 
     # ── Wire up the audio pipeline ────────────────────────────────────────────
-    capture  = AudioCapture(state)
-    analyzer = AudioAnalyzer(state, capture.audio_queue)
+    note_queue = queue.Queue(maxsize=32)
+    if args.file:
+        capture = FilePlayback(state, args.file)
+    else:
+        capture = AudioCapture(state)
+    analyzer   = AudioAnalyzer(state, capture.audio_queue, note_queue)
 
-    # Phase 2: instantiate MelodyRNN here and pass it to a RiffResponder
-    # riff_responder = RiffResponder(state, model_checkpoint="...")
+    if MAGENTA_AVAILABLE:
+        melody_gen = MagentaMelodyGen()
+        state.update(riff_model="Magenta (MelodyRNN)")
+    else:
+        melody_gen = None
+        state.update(riff_model="Markov (Fallback)")
+        
+    responder  = RiffResponder(state, note_queue, melody_gen=melody_gen)
 
     display = RiffDisplay(state)
 
@@ -42,7 +63,7 @@ def main() -> None:
     try:
         capture.start()
         analyzer.start()
-        # Phase 2: riff_responder.start()
+        responder.start()
         display.run()          # blocks until user quits
     except Exception as exc:
         # Make sure we restore the terminal before printing the error
@@ -50,9 +71,9 @@ def main() -> None:
         raise
     finally:
         state.update(running=False)
+        responder.stop()
         analyzer.stop()
         capture.stop()
-        # Phase 2: riff_responder.stop()
         print("\n[RIFF] Goodbye 🎸")
 
 

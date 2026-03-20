@@ -1,12 +1,17 @@
-"""Audio capture via sounddevice.
+"""Audio capture via sounddevice, plus FilePlayback for offline files.
 
-Finds the Focusrite Scarlett Solo automatically (falls back to system default),
-opens a low-latency InputStream, and pushes mono float32 blocks into
-`audio_queue` for the downstream analyzer thread.
+AudioCapture  — live microphone/interface input (default mode)
+FilePlayback  — reads an audio file and feeds it block-by-block at real-time
+                pace into the same audio_queue interface.
+
+Both expose: audio_queue, start(), stop()
 """
 from __future__ import annotations
 
+import os
 import queue
+import threading
+import time
 from typing import Optional
 
 import numpy as np
@@ -110,3 +115,61 @@ class AudioCapture:
             self.audio_queue.put_nowait(indata[:, 0].copy())
         except queue.Full:
             pass  # silently drop if analyzer is behind
+
+
+class FilePlayback:
+    """
+    Reads an audio file and pushes mono float32 blocks into audio_queue at
+    real-time pace, mimicking the AudioCapture interface.
+
+    Supports any format librosa can load (mp3, flac, wav, ogg, m4a, …).
+    Automatically resamples to SAMPLE_RATE and converts to mono.
+
+    When the file ends, sets state.running = False so RIFF exits cleanly.
+    """
+
+    def __init__(self, state, path: str) -> None:
+        self.state = state
+        self._path = path
+        self.audio_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=64)
+        self._thread: Optional[threading.Thread] = None
+        self._stop_flag = False
+
+    def start(self) -> None:
+        name = os.path.basename(self._path)
+        self.state.update(device_name=f"file: {name}", latency_ms=0.0)
+        self._thread = threading.Thread(
+            target=self._feed,
+            daemon=True,
+            name="riff-file-playback",
+        )
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_flag = True
+
+    def _feed(self) -> None:
+        import librosa  # local import — not needed in live-mic path
+
+        try:
+            audio, _ = librosa.load(self._path, sr=SAMPLE_RATE, mono=True)
+        except Exception as exc:
+            self.state.update(status_msg=f"[file] load error: {exc}", running=False)
+            return
+
+        block_dur = BLOCK_SIZE / SAMPLE_RATE
+        total_blocks = len(audio) // BLOCK_SIZE
+
+        for i in range(total_blocks):
+            if self._stop_flag or not self.state.snapshot()["running"]:
+                return
+            block = audio[i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE].astype(np.float32)
+            try:
+                self.audio_queue.put_nowait(block)
+            except queue.Full:
+                pass
+            time.sleep(block_dur)
+
+        # File finished — let RIFF drain and then quit
+        time.sleep(2.0)
+        self.state.update(running=False)

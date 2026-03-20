@@ -255,17 +255,17 @@ def _you_panel(snap: dict, wf_height: int, show_chords: bool, n_bars: int) -> Pa
 
 
 def _riff_panel(snap: dict, wf_height: int, show_chords: bool, n_bars: int) -> Panel:
-    note      = snap["riff_note"]
-    octave    = snap["riff_octave"]
-    active    = snap["riff_active"]
-    muted     = snap["muted"]
-    mode      = snap["mode"]
-    model     = snap["riff_model"]
-    next_note = snap["riff_next_note"]
-    wf        = snap["riff_waveform"]
+    note       = snap["riff_note"]
+    octave     = snap["riff_octave"]
+    active     = snap["riff_active"]
+    muted      = snap["muted"]
+    mode       = snap["mode"]
+    instrument = snap["instrument"]
+    model      = snap["riff_model"]
+    next_note  = snap["riff_next_note"]
+    wf         = snap["riff_waveform"]
 
-    # Phase 2: riff_chords vendrá de MelodyRNN
-    riff_chords: list[str] = []
+    riff_chords: list[str] = snap["riff_chords"]
 
     if muted:
         border_style = "#5a1a1a"
@@ -274,17 +274,24 @@ def _riff_panel(snap: dict, wf_height: int, show_chords: bool, n_bars: int) -> P
         border_style = RIFF_BORDER
         color        = RIFF_COLOR
 
-    next_str = f"{next_note} →" if next_note != "—" else "—"
+    listening = snap.get("riff_listening", False)
+    density   = snap.get("riff_density", 0.0)
+
+    if listening:
+        next_str = "listening..."
+    else:
+        next_str = f"{next_note} →" if next_note != "—" else "—"
 
     parts: list = [
-        _note_bar_row(note, octave, -80.0, color),  # Phase 2: dB real del synth
+        _note_bar_row(note, octave, snap["riff_db"], color),
         _waveform_block(wf, color, wf_height, n_bars),
     ]
     if show_chords:
         parts.append(
             _chord_pills(riff_chords, color) if riff_chords else Text()
         )
-    parts.append(_meta_line([("mode", mode), ("model", model), ("next", next_str)]))
+    meta_items = [("mode", mode), ("inst", instrument.lower()), ("density", f"{density:.1f} n/s"), ("next", next_str)]
+    parts.append(_meta_line(meta_items))
 
     return Panel(
         Group(*parts),
@@ -350,8 +357,11 @@ def _controls_bar(snap: dict) -> Text:
     t.append(" mute riff", style=META_KEY)
     t.append("   ",        style=META_KEY)
     key("m")
-    t.append(" change mode", style=META_KEY)
-    t.append("   ",          style=META_KEY)
+    t.append(" mode", style=META_KEY)
+    t.append("   ",   style=META_KEY)
+    key("i")
+    t.append(" instrument", style=META_KEY)
+    t.append("   ",         style=META_KEY)
     key("q")
     t.append(" quit",       style=META_KEY)
     t.append(f"  {cursor}", style=f"bold {YOU_COLOR}")
@@ -447,6 +457,8 @@ class KeyboardHandler:
             self.state.toggle_mute()
         elif ch in ("m", "M"):
             self.state.next_mode()
+        elif ch in ("i", "I"):
+            self.state.next_instrument()
         elif ch in ("q", "Q", "\x03", "\x04"):
             self.state.update(running=False)
 
