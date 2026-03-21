@@ -259,8 +259,7 @@ def _riff_panel(snap: dict, wf_height: int, show_chords: bool, n_bars: int) -> P
     octave     = snap["riff_octave"]
     active     = snap["riff_active"]
     muted      = snap["muted"]
-    mode       = snap["mode"]
-    instrument = snap["instrument"]
+    timbre     = snap["timbre"]
     model      = snap["riff_model"]
     next_note  = snap["riff_next_note"]
     wf         = snap["riff_waveform"]
@@ -290,7 +289,13 @@ def _riff_panel(snap: dict, wf_height: int, show_chords: bool, n_bars: int) -> P
         parts.append(
             _chord_pills(riff_chords, color) if riff_chords else Text()
         )
-    meta_items = [("mode", mode), ("inst", instrument.lower()), ("density", f"{density:.1f} n/s"), ("next", next_str)]
+    m_phase    = snap.get("markov_phase", 1)
+    m_order    = snap.get("markov_order", 4)
+    m_learned  = snap.get("markov_learned", 0)
+    m_conf     = snap.get("markov_confidence", 0.0)
+
+    markov_str = f"P{m_phase} N={m_order} {m_learned}n {m_conf:.0%}"
+    meta_items = [("timbre", timbre.lower()), ("markov", markov_str), ("density", f"{density:.1f} n/s"), ("next", next_str)]
     parts.append(_meta_line(meta_items))
 
     return Panel(
@@ -357,11 +362,8 @@ def _controls_bar(snap: dict) -> Text:
     t.append(" mute riff", style=META_KEY)
     t.append("   ",        style=META_KEY)
     key("m")
-    t.append(" mode", style=META_KEY)
-    t.append("   ",   style=META_KEY)
-    key("i")
-    t.append(" instrument", style=META_KEY)
-    t.append("   ",         style=META_KEY)
+    t.append(" timbre", style=META_KEY)
+    t.append("   ",     style=META_KEY)
     key("q")
     t.append(" quit",       style=META_KEY)
     t.append(f"  {cursor}", style=f"bold {YOU_COLOR}")
@@ -456,9 +458,7 @@ class KeyboardHandler:
         if ch == " ":
             self.state.toggle_mute()
         elif ch in ("m", "M"):
-            self.state.next_mode()
-        elif ch in ("i", "I"):
-            self.state.next_instrument()
+            self.state.next_timbre()
         elif ch in ("q", "Q", "\x03", "\x04"):
             self.state.update(running=False)
 

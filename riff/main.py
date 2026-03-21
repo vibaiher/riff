@@ -6,7 +6,7 @@ Entry point.  Run with:
     uv run riff           # with uv
 
 Phase 1: listen, analyse, and visualise.
-Phase 2: Markov melodic responder wired in.
+Phase 2: Adaptive Markov melodic responder.
 """
 from __future__ import annotations
 
@@ -21,7 +21,6 @@ import sys
 from .audio.capture  import AudioCapture, FilePlayback
 from .audio.analyzer import AudioAnalyzer
 from .ai.responder   import RiffResponder
-from .ai.magenta_gen import MagentaMelodyGen, MAGENTA_AVAILABLE
 from .core.state     import AppState
 from .ui.display     import RiffDisplay
 
@@ -47,15 +46,7 @@ def main() -> None:
     else:
         capture = AudioCapture(state)
     analyzer   = AudioAnalyzer(state, capture.audio_queue, note_queue)
-
-    if MAGENTA_AVAILABLE:
-        melody_gen = MagentaMelodyGen()
-        state.update(riff_model="Magenta (MelodyRNN)")
-    else:
-        melody_gen = None
-        state.update(riff_model="Markov (Fallback)")
-        
-    responder  = RiffResponder(state, note_queue, melody_gen=melody_gen)
+    responder  = RiffResponder(state, note_queue)
 
     display = RiffDisplay(state)
 
