@@ -3,6 +3,7 @@
 render_bars()        — single-row ▁▂▃▄▅▆▇█ bar chart (absolute amplitude)
 render_oscilloscope() — multi-row oscilloscope using signed samples
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -77,7 +78,7 @@ def render_vbars(
         row_chars: list[str] = []
         for b, amp in enumerate(bars):
             if b > 0:
-                row_chars.append(" ")   # gap between bars
+                row_chars.append(" ")  # gap between bars
             row_chars.append(_VBAR if amp >= threshold else " ")
         rows.append("".join(row_chars))
 

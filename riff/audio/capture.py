@@ -6,22 +6,22 @@ FilePlayback  — reads an audio file and feeds it block-by-block at real-time
 
 Both expose: audio_queue, start(), stop()
 """
+
 from __future__ import annotations
 
 import os
 import queue
 import threading
 import time
-from typing import Optional
 
 import numpy as np
 import sounddevice as sd
 
 # ── Stream parameters ─────────────────────────────────────────────────────────
-SAMPLE_RATE = 44100      # Hz — Scarlett native rate
-CHANNELS    = 1          # mono input
-BLOCK_SIZE  = 1024       # ~23 ms per callback at 44 100 Hz
-DTYPE       = np.float32
+SAMPLE_RATE = 44100  # Hz — Scarlett native rate
+CHANNELS = 1  # mono input
+BLOCK_SIZE = 1024  # ~23 ms per callback at 44 100 Hz
+DTYPE = np.float32
 
 
 def find_input_device() -> tuple[int, str]:
@@ -37,8 +37,9 @@ def find_input_device() -> tuple[int, str]:
 
     for idx, dev in enumerate(devices):
         name_lower = dev["name"].lower()
-        if ("scarlett" in name_lower or "focusrite" in name_lower) \
-                and dev["max_input_channels"] > 0:
+        if ("scarlett" in name_lower or "focusrite" in name_lower) and dev[
+            "max_input_channels"
+        ] > 0:
             return idx, dev["name"]
 
     default_idx = sd.default.device[0]
@@ -69,7 +70,7 @@ class AudioCapture:
         # maxsize prevents the queue from growing unbounded if the
         # analyzer falls behind; old blocks are silently dropped.
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=64)
-        self._stream: Optional[sd.InputStream] = None
+        self._stream: sd.InputStream | None = None
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ class FilePlayback:
         self.state = state
         self._path = path
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=64)
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._stop_flag = False
 
     def start(self) -> None:

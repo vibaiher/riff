@@ -8,24 +8,18 @@ Analysis schedule
   Every block  (~23 ms)  → RMS / dBFS + waveform display data
   Every 4 blocks (~93 ms) → pitch via librosa.pyin  (only when signal > SILENCE_DB)
   Every 3 s               → BPM via librosa.beat.beat_track
-
-Phase 2 hook
-────────────
-  After pitch/BPM are computed, pass the results to MelodyRNN here
-  and write the generated note into state.riff_note / state.riff_active.
 """
+
 from __future__ import annotations
 
 import collections
 import queue
 import threading
-import time
-from typing import Optional
 
 import librosa
 import numpy as np
 
-from .capture import SAMPLE_RATE, BLOCK_SIZE
+from .capture import BLOCK_SIZE, SAMPLE_RATE
 
 # ── Analysis constants ────────────────────────────────────────────────────────
 
@@ -33,18 +27,18 @@ NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 # Suggested chords per root note (tonic, relative minor, subdominant, dominant7)
 _NOTE_CHORDS: dict[str, list[str]] = {
-    "C":  ["C",  "Am",  "F",  "G7"],
+    "C": ["C", "Am", "F", "G7"],
     "C#": ["C#", "A#m", "F#", "G#7"],
-    "D":  ["D",  "Bm",  "G",  "A7"],
-    "D#": ["D#", "Cm",  "G#", "A#7"],
-    "E":  ["E",  "C#m", "A",  "B7"],
-    "F":  ["F",  "Dm",  "Bb", "C7"],
-    "F#": ["F#", "D#m", "B",  "C#7"],
-    "G":  ["G",  "Em",  "C",  "D7"],
-    "G#": ["G#", "Fm",  "C#", "D#7"],
-    "A":  ["A",  "F#m", "D",  "E7"],
-    "A#": ["A#", "Gm",  "D#", "F7"],
-    "B":  ["B",  "G#m", "E",  "F#7"],
+    "D": ["D", "Bm", "G", "A7"],
+    "D#": ["D#", "Cm", "G#", "A#7"],
+    "E": ["E", "C#m", "A", "B7"],
+    "F": ["F", "Dm", "Bb", "C7"],
+    "F#": ["F#", "D#m", "B", "C#7"],
+    "G": ["G", "Em", "C", "D7"],
+    "G#": ["G#", "Fm", "C#", "D#7"],
+    "A": ["A", "F#m", "D", "E7"],
+    "A#": ["A#", "Gm", "D#", "F7"],
+    "B": ["B", "G#m", "E", "F#7"],
 }
 
 # Below this level pitch detection is skipped (avoids noise false positives)
@@ -69,6 +63,7 @@ BPM_UPDATE_BLOCKS = int(SAMPLE_RATE * 3 / BLOCK_SIZE)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def note_to_chords(note: str) -> list[str]:
     """Return the 4 most contextual chords for a given root note."""
@@ -102,6 +97,7 @@ def downsample_peaks(audio: np.ndarray, n_points: int) -> list[float]:
 
 # ── Analyzer ─────────────────────────────────────────────────────────────────
 
+
 class AudioAnalyzer:
     """
     Consumes raw audio blocks and writes analysis results to AppState.
@@ -114,22 +110,18 @@ class AudioAnalyzer:
         analyzer.stop()
     """
 
-    def __init__(self, state, audio_queue: queue.Queue, note_queue: Optional[queue.Queue] = None) -> None:
+    def __init__(self, state, audio_queue: queue.Queue) -> None:
         self.state = state
         self._queue = audio_queue
-        self._note_queue = note_queue
         self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._last_forwarded_note: Optional[str] = None
+        self._thread: threading.Thread | None = None
 
         # Accumulation buffers
-        self._pitch_buf:    list[np.ndarray]      = []
-        self._bpm_buf:      collections.deque     = collections.deque(maxlen=BPM_BUFFER_SAMPLES)
-        self._waveform_buf: collections.deque     = collections.deque(maxlen=WAVEFORM_BUFFER_SAMPLES)
+        self._pitch_buf: list[np.ndarray] = []
+        self._bpm_buf: collections.deque = collections.deque(maxlen=BPM_BUFFER_SAMPLES)
+        self._waveform_buf: collections.deque = collections.deque(maxlen=WAVEFORM_BUFFER_SAMPLES)
 
         self._bpm_counter = 0
-        self._last_candidate_note: Optional[str] = None   # for 2-frame confirmation
-        self._last_forward_time: float = 0.0              # for re-trigger on sustained notes
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -181,8 +173,8 @@ class AudioAnalyzer:
 
         # ── 2. Per-block: waveform display + level ────────────────────────────
         wf_data = downsample_peaks(np.array(self._waveform_buf), WAVEFORM_POINTS)
-        rms     = float(np.sqrt(np.mean(chunk ** 2)))
-        db      = rms_to_db(rms)
+        rms = float(np.sqrt(np.mean(chunk**2)))
+        db = rms_to_db(rms)
 
         updates: dict = {"db": db, "waveform": wf_data}
 
@@ -216,34 +208,7 @@ class AudioAnalyzer:
 
         self.state.update(**updates)
 
-        # ── Phase 2 hook: forward note events to RiffResponder ────────────────
-        if self._note_queue is not None:
-            current_note = updates.get("note")
-            if current_note and current_note != "—":
-                now = time.time()
-                note_changed = current_note != self._last_forwarded_note
-                # Confirmation: require same note in 2 consecutive pitch windows
-                confirmed = (current_note == self._last_candidate_note)
-                self._last_candidate_note = current_note
-                # Re-trigger: resend same note if sustained beyond 1.5s
-                retrigger = (current_note == self._last_forwarded_note
-                             and now - self._last_forward_time > 1.5)
-                if (note_changed and confirmed) or retrigger:
-                    self._last_forwarded_note = current_note
-                    self._last_forward_time = now
-                    from ..ai.responder import NoteEvent
-                    try:
-                        self._note_queue.put_nowait(NoteEvent(
-                            note=current_note,
-                            octave=updates.get("octave", 4),
-                            bpm=updates.get("bpm", 0.0) or self.state.snapshot()["bpm"],
-                            db=db,
-                            time=now,
-                        ))
-                    except queue.Full:
-                        pass
-
-    def _detect_pitch(self, audio: np.ndarray) -> Optional[float]:
+    def _detect_pitch(self, audio: np.ndarray) -> float | None:
         """
         Probabilistic YIN (pyin) pitch detection for monophonic instruments.
 
@@ -253,8 +218,8 @@ class AudioAnalyzer:
         try:
             f0, voiced_flag, _ = librosa.pyin(
                 audio,
-                fmin=librosa.note_to_hz("C2"),   # ~65 Hz
-                fmax=librosa.note_to_hz("C8"),   # ~4186 Hz
+                fmin=librosa.note_to_hz("C2"),  # ~65 Hz
+                fmax=librosa.note_to_hz("C8"),  # ~4186 Hz
                 sr=SAMPLE_RATE,
             )
             # Use median of voiced frames to suppress transient noise

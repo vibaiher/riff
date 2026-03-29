@@ -21,23 +21,22 @@ n_bars del waveform para 146 cols:
   avail_w = 146 − 2 (bordes panel) − 2 (prefijo) = 142
   n_bars  = (142 + 1) // 2 = 71  →  ancho = 141 chars ✓
 """
+
 from __future__ import annotations
 
 import os
 import select
 import sys
 import termios
+import threading
 import time
 import tty
-import threading
-from typing import Optional
 
 from rich import box
 from rich.align import Align
 from rich.console import Console, Group
 from rich.layout import Layout
 from rich.live import Live
-from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
@@ -46,19 +45,19 @@ from rich.text import Text
 from .waveform import render_vbars
 
 # ── Paleta exacta del mockup ──────────────────────────────────────────────────
-YOU_COLOR   = "#b388ff"   # texto y waveform panel YOU
-YOU_BORDER  = "#7c4dff"   # borde panel YOU
-YOU_BG      = "#0e0a17"   # fondo panel YOU (púrpura muy oscuro)
+YOU_COLOR = "#b388ff"  # texto y waveform panel YOU
+YOU_BORDER = "#7c4dff"  # borde panel YOU
+YOU_BG = "#0e0a17"  # fondo panel YOU (púrpura muy oscuro)
 
-RIFF_COLOR  = "#69f0ae"   # texto y waveform panel RIFF
-RIFF_BORDER = "#00bfa5"   # borde panel RIFF
-RIFF_BG     = "#090f0d"   # fondo panel RIFF (teal muy oscuro)
+RIFF_COLOR = "#69f0ae"  # texto y waveform panel RIFF
+RIFF_BORDER = "#00bfa5"  # borde panel RIFF
+RIFF_BG = "#090f0d"  # fondo panel RIFF (teal muy oscuro)
 
-LABEL_DIM   = "#555555"   # etiquetas de sección
-META_KEY    = "#444444"   # claves de metadatos
-META_VAL    = "#666666"   # valores de metadatos
-BAR_EMPTY   = "#1e1e1e"   # segmentos vacíos de la barra de nivel
-SEP_COLOR   = "#2a2a2a"   # separadores / bordes casi invisibles
+LABEL_DIM = "#555555"  # etiquetas de sección
+META_KEY = "#444444"  # claves de metadatos
+META_VAL = "#666666"  # valores de metadatos
+BAR_EMPTY = "#1e1e1e"  # segmentos vacíos de la barra de nivel
+SEP_COLOR = "#2a2a2a"  # separadores / bordes casi invisibles
 
 REFRESH_RATE = 20
 
@@ -75,9 +74,18 @@ LOGO = (
 
 # ── Color por nota (rueda cromática) ─────────────────────────────────────────
 _NOTE_COLORS: dict[str, str] = {
-    "C": "#ff6b6b", "C#": "#ff9f43", "D": "#ffd32a", "D#": "#0be881",
-    "E": "#0fbcf9", "F": "#48dbfb", "F#": "#f368e0", "G": "#ff9ff3",
-    "G#": "#54a0ff", "A": "#a29bfe", "A#": "#00d2d3", "B":  "#fd79a8",
+    "C": "#ff6b6b",
+    "C#": "#ff9f43",
+    "D": "#ffd32a",
+    "D#": "#0be881",
+    "E": "#0fbcf9",
+    "F": "#48dbfb",
+    "F#": "#f368e0",
+    "G": "#ff9ff3",
+    "G#": "#54a0ff",
+    "A": "#a29bfe",
+    "A#": "#00d2d3",
+    "B": "#fd79a8",
     "—": LABEL_DIM,
 }
 
@@ -92,6 +100,7 @@ def _blink() -> bool:
 
 
 # ── Cálculo adaptativo de alturas y barras ────────────────────────────────────
+
 
 def _panel_content_params(term_height: int, term_width: int) -> tuple[int, bool, int]:
     """
@@ -113,25 +122,26 @@ def _panel_content_params(term_height: int, term_width: int) -> tuple[int, bool,
     n_bars = (term_width − 4 + 1) // 2
       donde 4 = 2 (bordes panel) + 2 (prefijo de espacios en waveform)
     """
-    fixed       = 7 + 1 + 1 + 2 + 2 + 1          # = 14
-    available   = max(10, term_height - fixed)
-    panel_rows  = max(5, available // 2)
-    content_h   = panel_rows - 2                  # descontar bordes Panel
+    fixed = 7 + 1 + 1 + 2 + 2 + 1  # = 14
+    available = max(10, term_height - fixed)
+    panel_rows = max(5, available // 2)
+    content_h = panel_rows - 2  # descontar bordes Panel
 
     if content_h >= 6:
-        wf_h        = content_h - 3               # nota + wf + chords + meta
+        wf_h = content_h - 3  # nota + wf + chords + meta
         show_chords = True
     else:
-        wf_h        = max(2, content_h - 2)       # nota + wf + meta
+        wf_h = max(2, content_h - 2)  # nota + wf + meta
         show_chords = False
 
     avail_w = max(10, term_width - 4)
-    n_bars  = max(8, (avail_w + 1) // 2)
+    n_bars = max(8, (avail_w + 1) // 2)
 
     return wf_h, show_chords, n_bars
 
 
 # ── Constructores de elementos individuales ───────────────────────────────────
+
 
 def _header_panel() -> Group:
     """
@@ -160,17 +170,17 @@ def _note_bar_row(note: str, octave: int, db: float, panel_color: str) -> Table:
     Usa rich.table.Table.grid para alineación precisa de columnas.
     """
     t = Table.grid(expand=True, padding=(0, 1, 0, 0))
-    t.add_column(width=7,  no_wrap=True)   # badge de nota
-    t.add_column(ratio=1,  no_wrap=True)   # barra de nivel (rellena el espacio)
-    t.add_column(width=12, no_wrap=True)   # valor dB
+    t.add_column(width=7, no_wrap=True)  # badge de nota
+    t.add_column(ratio=1, no_wrap=True)  # barra de nivel (rellena el espacio)
+    t.add_column(width=12, no_wrap=True)  # valor dB
 
-    nc    = _note_color(note)
+    nc = _note_color(note)
     badge = f" {note}{octave if note != '—' else ''}"
 
     clamped = max(-80.0, min(0.0, db))
-    filled  = int((clamped + 80.0) / 80.0 * 30)
+    filled = int((clamped + 80.0) / 80.0 * 30)
     bar = Text()
-    bar.append("█" * filled,        style=panel_color)
+    bar.append("█" * filled, style=panel_color)
     bar.append("░" * (30 - filled), style=BAR_EMPTY)
 
     t.add_row(
@@ -186,9 +196,9 @@ def _waveform_block(data: list[float], color: str, height: int, n_bars: int) -> 
     Bloque de barras verticales animado.
     n_bars se calcula en _panel_content_params según el ancho del terminal.
     """
-    wf    = render_vbars(data, n_bars=n_bars, height=height)
+    wf = render_vbars(data, n_bars=n_bars, height=height)
     lines = wf.split("\n")
-    t     = Text()
+    t = Text()
     for i, line in enumerate(lines):
         suffix = "\n" if i < len(lines) - 1 else ""
         t.append(f"  {line}{suffix}", style=color)
@@ -218,20 +228,21 @@ def _meta_line(items: list[tuple[str, str]]) -> Text:
         if i:
             t.append("  ·  ", style=META_KEY)
         t.append(f"{k}: ", style=META_KEY)
-        t.append(v,         style=META_VAL)
+        t.append(v, style=META_VAL)
     return t
 
 
 # ── Paneles principales ───────────────────────────────────────────────────────
 
+
 def _you_panel(snap: dict, wf_height: int, show_chords: bool, n_bars: int) -> Panel:
-    note    = snap["note"]
-    octave  = snap["octave"]
-    db      = snap["db"]
-    bpm     = snap["bpm"]
+    note = snap["note"]
+    octave = snap["octave"]
+    db = snap["db"]
+    bpm = snap["bpm"]
     latency = snap["latency_ms"]
-    chords  = snap["chords"]
-    wf      = snap["waveform"]
+    chords = snap["chords"]
+    wf = snap["waveform"]
 
     bpm_str = f"♩ {bpm:.0f}" if bpm > 0 else "—"
 
@@ -254,73 +265,105 @@ def _you_panel(snap: dict, wf_height: int, show_chords: bool, n_bars: int) -> Pa
     )
 
 
+_MODE_TITLES: dict[str, str] = {
+    "FREE": "RIFF · FREE",
+    "PRACTICE": "RIFF · PRACTICE",
+    "EAR_TRAINING": "RIFF · EAR TRAINING",
+}
+
+
 def _riff_panel(snap: dict, wf_height: int, show_chords: bool, n_bars: int) -> Panel:
-    note       = snap["riff_note"]
-    octave     = snap["riff_octave"]
-    active     = snap["riff_active"]
-    muted      = snap["muted"]
-    timbre     = snap["timbre"]
-    model      = snap["riff_model"]
-    next_note  = snap["riff_next_note"]
-    wf         = snap["riff_waveform"]
+    mode = snap.get("mode", "FREE")
+    title = _MODE_TITLES.get(mode, f"RIFF · {mode}")
 
-    riff_chords: list[str] = snap["riff_chords"]
-
-    if muted:
-        border_style = "#5a1a1a"
-        color        = "#ff5555"
-    else:
-        border_style = RIFF_BORDER
-        color        = RIFF_COLOR
-
-    listening = snap.get("riff_listening", False)
-    density   = snap.get("riff_density", 0.0)
-
-    if listening:
-        next_str = "listening..."
-    else:
-        next_str = f"{next_note} →" if next_note != "—" else "—"
-
-    parts: list = [
-        _note_bar_row(note, octave, snap["riff_db"], color),
-        _waveform_block(wf, color, wf_height, n_bars),
-    ]
-    if show_chords:
-        parts.append(
-            _chord_pills(riff_chords, color) if riff_chords else Text()
-        )
-    m_phase    = snap.get("markov_phase", 1)
-    m_order    = snap.get("markov_order", 4)
-    m_learned  = snap.get("markov_learned", 0)
-    m_conf     = snap.get("markov_confidence", 0.0)
-
-    markov_str = f"P{m_phase} N={m_order} {m_learned}n {m_conf:.0%}"
-    meta_items = [("timbre", timbre.lower()), ("markov", markov_str), ("density", f"{density:.1f} n/s"), ("next", next_str)]
-    parts.append(_meta_line(meta_items))
+    parts = _mode_content(mode, snap, wf_height, n_bars, show_chords)
 
     return Panel(
         Group(*parts),
-        title=f"[bold {LABEL_DIM}]  RIFF IS PLAYING  [/bold {LABEL_DIM}]",
+        title=f"[bold {LABEL_DIM}]  {title}  [/bold {LABEL_DIM}]",
         title_align="left",
-        border_style=border_style,
+        border_style=RIFF_BORDER,
         box=box.ROUNDED,
         style=f"on {RIFF_BG}",
         padding=(0, 0),
     )
 
 
+_MODE_PLACEHOLDERS: dict[str, str] = {
+    "FREE": "metrics coming soon",
+    "PRACTICE": "exercises coming soon",
+    "EAR_TRAINING": "ear training coming soon",
+}
+
+
+def _mode_content(
+    mode: str, snap: dict, wf_height: int, n_bars: int, show_chords: bool = True
+) -> list:
+    if mode == "FREE":
+        return _free_mode_content(snap, wf_height, n_bars, show_chords)
+    message = _MODE_PLACEHOLDERS.get(mode, mode)
+    t = Text()
+    t.append("\n")
+    t.append(f"  {message}", style=META_VAL)
+    for _ in range(wf_height):
+        t.append("\n")
+    return [t]
+
+
+def _free_mode_content(snap: dict, wf_height: int, n_bars: int, show_chords: bool = True) -> list:
+    song_note = snap.get("song_note", "—")
+    song_octave = snap.get("song_octave", 4)
+    song_db = snap.get("song_db", -80.0)
+    song_bpm = snap.get("song_bpm", 0.0)
+    song_position = snap.get("song_position", 0.0)
+    song_upcoming = snap.get("song_upcoming", [])
+    song_waveform = snap.get("song_waveform", [])
+    has_song = song_note != "—" or song_bpm > 0 or song_position > 0
+
+    if not has_song:
+        t = Text()
+        t.append("\n")
+        t.append("  metrics coming soon", style=META_VAL)
+        for _ in range(wf_height):
+            t.append("\n")
+        return [t]
+
+    parts: list = [
+        _note_bar_row(song_note, song_octave, song_db, RIFF_COLOR),
+        _waveform_block(song_waveform, RIFF_COLOR, wf_height, n_bars),
+    ]
+    if show_chords and song_upcoming:
+        parts.append(_chord_pills(song_upcoming, RIFF_COLOR))
+
+    song_speed = snap.get("song_speed", 1.0)
+    meta_items: list[tuple[str, str]] = []
+    if song_bpm > 0:
+        meta_items.append(("tempo", f"♩ {song_bpm:.0f}"))
+    if song_speed != 1.0:
+        meta_items.append(("speed", f"{song_speed}x"))
+    if song_position > 0:
+        mins = int(song_position) // 60
+        secs = int(song_position) % 60
+        meta_items.append(("position", f"{mins}:{secs:02d}"))
+    if meta_items:
+        parts.append(_meta_line(meta_items))
+
+    return parts
+
+
 # ── Barra de estado y controles ───────────────────────────────────────────────
+
 
 def _status_bar(snap: dict) -> Group:
     """
     Dos filas para el slot status(size=2):
-      fila 1 → tres indicadores con punto de color, dos parpadeantes
+      fila 1 → indicadores de dispositivo, señal y modo
       fila 2 → regla separadora (visual breathing room antes de controls)
     """
-    device  = snap["device_name"]
-    active  = snap["note"] != "—"
-    riff_on = snap["riff_active"] and not snap["muted"]
-    b       = _blink()
+    device = snap["device_name"]
+    active = snap["note"] != "—"
+    mode = snap.get("mode", "FREE")
+    b = _blink()
 
     t = Text()
     t.append("  ")
@@ -336,12 +379,10 @@ def _status_bar(snap: dict) -> Group:
         t.append("○ ", style=f"{LABEL_DIM}")
     t.append("listening   ", style=META_VAL if active else META_KEY)
 
-    # Punto verde: generating (parpadea cuando RIFF está activo)
-    if riff_on and b:
-        t.append("● ", style=f"bold {RIFF_COLOR}")
-    else:
-        t.append("○ ", style=f"{LABEL_DIM}")
-    t.append("generating", style=META_VAL if riff_on else META_KEY)
+    # Modo actual
+    mode_display = mode.replace("_", " ")
+    t.append("● ", style=f"bold {RIFF_COLOR}")
+    t.append(mode_display.lower(), style=META_VAL)
 
     return Group(t, Rule(style=SEP_COLOR))
 
@@ -354,24 +395,29 @@ def _controls_bar(snap: dict) -> Text:
     t.append("  ")
 
     def key(label: str) -> None:
-        t.append("[",     style=SEP_COLOR)
-        t.append(label,   style=META_VAL)
-        t.append("]",     style=SEP_COLOR)
+        t.append("[", style=SEP_COLOR)
+        t.append(label, style=META_VAL)
+        t.append("]", style=SEP_COLOR)
 
     key("space")
-    t.append(" mute riff", style=META_KEY)
-    t.append("   ",        style=META_KEY)
+    t.append(" pause", style=META_KEY)
+    t.append("   ", style=META_KEY)
+    key("[")
+    key("]")
+    t.append(" speed", style=META_KEY)
+    t.append("   ", style=META_KEY)
     key("m")
-    t.append(" timbre", style=META_KEY)
-    t.append("   ",     style=META_KEY)
+    t.append(" mode", style=META_KEY)
+    t.append("   ", style=META_KEY)
     key("q")
-    t.append(" quit",       style=META_KEY)
+    t.append(" quit", style=META_KEY)
     t.append(f"  {cursor}", style=f"bold {YOU_COLOR}")
 
     return t
 
 
 # ── Composición del layout completo ──────────────────────────────────────────
+
 
 def build_layout(snap: dict, term_height: int, term_width: int) -> Layout:
     """
@@ -387,14 +433,14 @@ def build_layout(snap: dict, term_height: int, term_width: int) -> Layout:
 
     layout = Layout()
     layout.split_column(
-        Layout(name="header",   size=7),
-        Layout(name="sep1",     size=1),
-        Layout(name="you",      ratio=1),
-        Layout(name="sep2",     size=1),
-        Layout(name="riff",     ratio=1),
-        Layout(name="status",   size=2),
+        Layout(name="header", size=7),
+        Layout(name="sep1", size=1),
+        Layout(name="you", ratio=1),
+        Layout(name="sep2", size=1),
+        Layout(name="riff", ratio=1),
+        Layout(name="status", size=2),
         Layout(name="controls", size=2),
-        Layout(name="margin",   size=1),
+        Layout(name="margin", size=1),
     )
 
     layout["header"].update(_header_panel())
@@ -411,6 +457,7 @@ def build_layout(snap: dict, term_height: int, term_width: int) -> Layout:
 
 # ── Teclado (tty raw + select, sin dependencias extra) ────────────────────────
 
+
 class KeyboardHandler:
     """
     Lectura de teclas no bloqueante via modo raw POSIX + select.
@@ -419,9 +466,9 @@ class KeyboardHandler:
     """
 
     def __init__(self, state) -> None:
-        self.state     = state
-        self._thread:   Optional[threading.Thread] = None
-        self._original: Optional[list]             = None
+        self.state = state
+        self._thread: threading.Thread | None = None
+        self._original: list | None = None
 
     def start(self) -> None:
         if not sys.stdin.isatty():
@@ -432,7 +479,9 @@ class KeyboardHandler:
         except Exception:
             return
         self._thread = threading.Thread(
-            target=self._loop, daemon=True, name="riff-keyboard",
+            target=self._loop,
+            daemon=True,
+            name="riff-keyboard",
         )
         self._thread.start()
 
@@ -440,7 +489,9 @@ class KeyboardHandler:
         if self._original is not None:
             try:
                 termios.tcsetattr(
-                    sys.stdin.fileno(), termios.TCSADRAIN, self._original,
+                    sys.stdin.fileno(),
+                    termios.TCSADRAIN,
+                    self._original,
                 )
             except Exception:
                 pass
@@ -458,12 +509,19 @@ class KeyboardHandler:
         if ch == " ":
             self.state.toggle_mute()
         elif ch in ("m", "M"):
+            self.state.next_mode()
+        elif ch in ("t", "T"):
             self.state.next_timbre()
+        elif ch == "[":
+            self.state.speed_down()
+        elif ch == "]":
+            self.state.speed_up()
         elif ch in ("q", "Q", "\x03", "\x04"):
             self.state.update(running=False)
 
 
 # ── Controlador principal del display ────────────────────────────────────────
+
 
 class RiffDisplay:
     """
@@ -478,9 +536,9 @@ class RiffDisplay:
     """
 
     def __init__(self, state) -> None:
-        self.state    = state
+        self.state = state
         self._console = Console()
-        self._kb      = KeyboardHandler(state)
+        self._kb = KeyboardHandler(state)
 
     def _size(self) -> tuple[int, int]:
         """Lee el tamaño real del terminal. os.get_terminal_size() es la fuente
@@ -494,9 +552,9 @@ class RiffDisplay:
     def run(self) -> None:
         # ── Maximizar ventana de terminal (iTerm2, Terminal.app, xterm…) ──────
         if sys.stdout.isatty():
-            sys.stdout.write("\033[9;1t")   # XTerm: maximize window
+            sys.stdout.write("\033[9;1t")  # XTerm: maximize window
             sys.stdout.flush()
-            time.sleep(0.15)                # esperar a que el OS redimensione
+            time.sleep(0.15)  # esperar a que el OS redimensione
 
         self._kb.start()
         try:
