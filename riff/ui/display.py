@@ -42,56 +42,13 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from .waveform import render_vbars
-
-# ── Paleta exacta del mockup ──────────────────────────────────────────────────
-YOU_COLOR = "#b388ff"  # texto y waveform panel YOU
-YOU_BORDER = "#7c4dff"  # borde panel YOU
-YOU_BG = "#0e0a17"  # fondo panel YOU (púrpura muy oscuro)
-
-RIFF_COLOR = "#69f0ae"  # texto y waveform panel RIFF
-RIFF_BORDER = "#00bfa5"  # borde panel RIFF
-RIFF_BG = "#090f0d"  # fondo panel RIFF (teal muy oscuro)
-
-LABEL_DIM = "#555555"  # etiquetas de sección
-META_KEY = "#444444"  # claves de metadatos
-META_VAL = "#666666"  # valores de metadatos
-BAR_EMPTY = "#1e1e1e"  # segmentos vacíos de la barra de nivel
-SEP_COLOR = "#2a2a2a"  # separadores / bordes casi invisibles
-
-REFRESH_RATE = 20
-
-# ── Logo ASCII — 6 líneas completas para header(size=7) sin Panel ────────────
-#   Group directo: 6 (logo) + 1 (subtítulo) = 7 filas exactas ✓
-LOGO = (
-    "██████╗ ██╗███████╗███████╗\n"
-    "██╔══██╗██║██╔════╝██╔════╝\n"
-    "██████╔╝██║█████╗  █████╗  \n"
-    "██╔══██╗██║██╔══╝  ██╔══╝  \n"
-    "██║  ██║██║██║     ██║     \n"
-    "╚═╝  ╚═╝╚═╝╚═╝     ╚═╝  v0.1"
+from .palette import (
+    YOU_COLOR, YOU_BORDER, YOU_BG,
+    RIFF_COLOR, RIFF_BORDER, RIFF_BG,
+    LABEL_DIM, META_KEY, META_VAL, BAR_EMPTY, SEP_COLOR,
+    REFRESH_RATE, LOGO, note_color,
 )
-
-# ── Color por nota (rueda cromática) ─────────────────────────────────────────
-_NOTE_COLORS: dict[str, str] = {
-    "C": "#ff6b6b",
-    "C#": "#ff9f43",
-    "D": "#ffd32a",
-    "D#": "#0be881",
-    "E": "#0fbcf9",
-    "F": "#48dbfb",
-    "F#": "#f368e0",
-    "G": "#ff9ff3",
-    "G#": "#54a0ff",
-    "A": "#a29bfe",
-    "A#": "#00d2d3",
-    "B": "#fd79a8",
-    "—": LABEL_DIM,
-}
-
-
-def _note_color(note: str) -> str:
-    return _NOTE_COLORS.get(note, "#aaaaaa")
+from .waveform import render_vbars
 
 
 def _blink() -> bool:
@@ -174,7 +131,7 @@ def _note_bar_row(note: str, octave: int, db: float, panel_color: str) -> Table:
     t.add_column(ratio=1, no_wrap=True)  # barra de nivel (rellena el espacio)
     t.add_column(width=12, no_wrap=True)  # valor dB
 
-    nc = _note_color(note)
+    nc = note_color(note)
     badge = f" {note}{octave if note != '—' else ''}"
 
     clamped = max(-80.0, min(0.0, db))

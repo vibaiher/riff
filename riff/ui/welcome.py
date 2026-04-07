@@ -21,24 +21,9 @@ from rich.panel import Panel
 from rich.text import Text
 
 from riff.core.state import MODES
-
-# Reuse palette from display
-YOU_COLOR = "#b388ff"
-YOU_BORDER = "#7c4dff"
-RIFF_COLOR = "#69f0ae"
-RIFF_BORDER = "#00bfa5"
-LABEL_DIM = "#555555"
-META_VAL = "#666666"
-META_KEY = "#444444"
-SEP_COLOR = "#2a2a2a"
-
-LOGO = (
-    "██████╗ ██╗███████╗███████╗\n"
-    "██╔══██╗██║██╔════╝██╔════╝\n"
-    "██████╔╝██║█████╗  █████╗  \n"
-    "██╔══██╗██║██╔══╝  ██╔══╝  \n"
-    "██║  ██║██║██║     ██║     \n"
-    "╚═╝  ╚═╝╚═╝╚═╝     ╚═╝  v0.1"
+from riff.ui.palette import (
+    YOU_COLOR, YOU_BORDER, RIFF_COLOR, RIFF_BORDER,
+    LABEL_DIM, META_VAL, META_KEY, SEP_COLOR, LOGO,
 )
 
 _MODE_DESCRIPTIONS: dict[str, str] = {
