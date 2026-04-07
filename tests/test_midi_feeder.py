@@ -1,7 +1,7 @@
 """Tests for MidiFeeder — feeds loaded MIDI into YOU panel + chord accumulation."""
 
-from riff.audio.song import SongData, SongNote
 from riff.audio.midi_feeder import MidiFeeder
+from riff.audio.song import SongData, SongNote
 from riff.core.state import AppState
 
 
@@ -80,6 +80,7 @@ class TestMidiFeeder:
 
     def test_tick_updates_waveform_from_audio(self):
         import numpy as np
+
         state = AppState(mode_index=1)
         song = _simple_song()
         audio = np.sin(2 * np.pi * 440 * np.arange(44100 * 3) / 44100).astype(np.float32)
@@ -93,6 +94,7 @@ class TestMidiFeeder:
 
     def test_tick_updates_db_from_audio(self):
         import numpy as np
+
         state = AppState(mode_index=1)
         song = _simple_song()
         audio = np.sin(2 * np.pi * 440 * np.arange(44100 * 3) / 44100).astype(np.float32)

@@ -46,8 +46,25 @@ class TestPhraseEngine:
             assert n.start < total_duration + 0.01
 
     def test_all_notes_valid_names(self):
-        valid = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
-                 "Db", "Eb", "Gb", "Ab", "Bb"}
+        valid = {
+            "C",
+            "C#",
+            "D",
+            "D#",
+            "E",
+            "F",
+            "F#",
+            "G",
+            "G#",
+            "A",
+            "A#",
+            "B",
+            "Db",
+            "Eb",
+            "Gb",
+            "Ab",
+            "Bb",
+        }
 
         notes = self.engine.generate(self.chords, bars=4, bpm=120)
 

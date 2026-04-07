@@ -5,7 +5,7 @@ from __future__ import annotations
 import pretty_midi
 
 from riff.ai.engine import get_engine
-from riff.audio.chords import CHROMATIC, _ENHARMONIC, parse_progression
+from riff.audio.chords import _ENHARMONIC, CHROMATIC, parse_progression
 from riff.audio.song import SongData, SongNote
 
 

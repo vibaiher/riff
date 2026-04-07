@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 
-from riff.audio.chords import CHROMATIC, Chord, _ENHARMONIC, _CHORD_RE, _SUFFIX_MAP
+from riff.audio.chords import _CHORD_RE, _ENHARMONIC, _SUFFIX_MAP, CHROMATIC, Chord
 from riff.audio.song import SongNote
 
 _MIN_OCTAVE = 3
@@ -82,9 +82,7 @@ def _vary_motif(motif: list[str], chord: Chord) -> list[str]:
 class PhraseEngine:
     name = "phrase"
 
-    def generate(
-        self, chords: list[Chord], bars: int = 4, bpm: int = 120
-    ) -> list[SongNote]:
+    def generate(self, chords: list[Chord], bars: int = 4, bpm: int = 120) -> list[SongNote]:
         beat_dur = 60.0 / bpm
         beats_per_chord = bars
 
@@ -128,12 +126,14 @@ class PhraseEngine:
 
                     octave = _pick_octave(prev_octave, note_name, prev_note)
 
-                    notes.append(SongNote(
-                        note=note_name,
-                        octave=octave,
-                        start=round(note_start, 4),
-                        duration=round(note_dur, 4),
-                    ))
+                    notes.append(
+                        SongNote(
+                            note=note_name,
+                            octave=octave,
+                            start=round(note_start, 4),
+                            duration=round(note_dur, 4),
+                        )
+                    )
 
                     prev_note = note_name
                     prev_octave = octave
@@ -147,10 +147,7 @@ class PhraseEngine:
         notes.sort(key=lambda n: n.start)
         return notes
 
-    def generate_timed(
-        self, timed_chords: list[TimedChord], bpm: int = 120
-    ) -> list[SongNote]:
-        from riff.audio.midi_feeder import TimedChord as _TC
+    def generate_timed(self, timed_chords: list, bpm: int = 120) -> list[SongNote]:
 
         beat_dur = 60.0 / bpm
         rhythm = random.choice(_RHYTHM_PATTERNS)
@@ -198,12 +195,14 @@ class PhraseEngine:
 
                     octave = _pick_octave(prev_octave, note_name, prev_note)
 
-                    notes.append(SongNote(
-                        note=note_name,
-                        octave=octave,
-                        start=round(note_start, 4),
-                        duration=round(note_dur, 4),
-                    ))
+                    notes.append(
+                        SongNote(
+                            note=note_name,
+                            octave=octave,
+                            start=round(note_start, 4),
+                            duration=round(note_dur, 4),
+                        )
+                    )
 
                     prev_note = note_name
                     prev_octave = octave

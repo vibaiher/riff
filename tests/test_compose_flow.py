@@ -26,6 +26,7 @@ def _make_midi(tmp_dir: str) -> str:
 
 def _dummy_song():
     from riff.audio.song import SongData, SongNote
+
     return SongData(
         notes=[SongNote(note="C", octave=4, start=0.0, duration=0.05)],
         bpm=120.0,
@@ -34,6 +35,7 @@ def _dummy_song():
 
 def _dummy_timed_chord():
     from riff.audio.midi_feeder import TimedChord
+
     return TimedChord(chord="C", start=0.0, duration=1.0)
 
 
@@ -110,7 +112,8 @@ class TestComposePhase:
 
         cmds.play_mix()
 
-        assert "mix" in state.snapshot()["status_msg"].lower() or "playing" in state.snapshot()["status_msg"].lower()
+        msg = state.snapshot()["status_msg"].lower()
+        assert "mix" in msg or "playing" in msg
 
     def test_listen_in_generated_listens_again(self):
         state, cmds = self._make(mode_index=1)

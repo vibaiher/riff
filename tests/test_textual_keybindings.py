@@ -13,6 +13,7 @@ class TestMainScreenKeys:
         state = AppState(**state_kwargs)
         app.state = state
         from riff.core.commands import ComposeCommands
+
         app.commands = ComposeCommands(state)
         return app
 
@@ -64,6 +65,7 @@ class TestMainScreenKeys:
 
             await pilot.press("g")
             import asyncio
+
             await asyncio.sleep(0.5)
 
             snap = app.state.snapshot()

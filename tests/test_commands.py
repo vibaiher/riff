@@ -146,11 +146,11 @@ class TestComposeCommands:
 
 
 def _make_midi_file() -> str:
-    f = tempfile.NamedTemporaryFile(suffix=".mid", delete=False)
+    with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as f:
+        path = f.name
     midi = pretty_midi.PrettyMIDI()
     inst = pretty_midi.Instrument(program=0)
     inst.notes.append(pretty_midi.Note(velocity=100, pitch=60, start=0.0, end=0.5))
     midi.instruments.append(inst)
-    midi.write(f.name)
-    f.close()
-    return f.name
+    midi.write(path)
+    return path

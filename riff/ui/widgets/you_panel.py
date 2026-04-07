@@ -10,8 +10,14 @@ from rich.text import Text
 from textual.widgets import Static
 
 from riff.ui.palette import (
-    YOU_COLOR, YOU_BORDER, YOU_BG, BAR_EMPTY,
-    LABEL_DIM, META_KEY, META_VAL, note_color,
+    BAR_EMPTY,
+    LABEL_DIM,
+    META_KEY,
+    META_VAL,
+    YOU_BG,
+    YOU_BORDER,
+    YOU_COLOR,
+    note_color,
 )
 from riff.ui.waveform import render_vbars
 

@@ -37,8 +37,9 @@ class ComposeCommands:
             self._state.update(status_msg=f"Load error: {exc}", compose_phase="")
 
     def _load_midi(self, path: str) -> None:
-        from riff.audio.song import SongData
         from riff.audio.midi_feeder import extract_timed_chords
+        from riff.audio.song import SongData
+
         song = SongData.from_file(path)
         audio = song.render_audio()
         self._source_song = song
@@ -53,18 +54,23 @@ class ComposeCommands:
         self.listen_source()
 
     def _load_audio(self, path: str) -> None:
-        from riff.audio.capture import SAMPLE_RATE
         import warnings
+
+        from riff.audio.capture import SAMPLE_RATE
+
         try:
             import soundfile as sf
+
             audio, sr = sf.read(path, dtype="float32", always_2d=False)
             if audio.ndim > 1:
                 audio = audio[:, 0]
             if sr != SAMPLE_RATE:
                 import librosa
+
                 audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
         except Exception:
             import librosa
+
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 audio, _ = librosa.load(path, sr=SAMPLE_RATE, mono=True)
@@ -99,6 +105,7 @@ class ComposeCommands:
     def _play_midi_source(self) -> None:
         from riff.audio.midi_feeder import MidiFeeder
         from riff.audio.song import SongPlayer
+
         feeder = MidiFeeder(self._state, self._source_song, audio=self.source_audio)
         player = SongPlayer(self.source_audio)
         player.start()
@@ -117,6 +124,7 @@ class ComposeCommands:
     def _feed_audio_to_analyzer(self) -> None:
         from riff.audio.capture import BLOCK_SIZE, SAMPLE_RATE
         from riff.audio.song import SongPlayer
+
         audio = self.source_audio
         q = self._state.audio_queue
         if audio is None:
@@ -132,7 +140,7 @@ class ComposeCommands:
                 for i in range(total_blocks):
                     if not self._state.snapshot()["running"]:
                         break
-                    block = audio[i * BLOCK_SIZE:(i + 1) * BLOCK_SIZE]
+                    block = audio[i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE]
                     try:
                         q.put_nowait(block)
                     except Exception:
@@ -181,6 +189,7 @@ class ComposeCommands:
 
     def _generate_and_play(self, chords: list[str], engine: str, bpm: float) -> None:
         from riff.ai.generate import generate_song, select_progression
+
         self._state.update(gen_status="generating...", status_msg="Generating melody...")
         try:
             unique = select_progression(chords)
@@ -196,6 +205,7 @@ class ComposeCommands:
                 status_msg=f"Playing {len(song.notes)} notes ({song.total_duration:.1f}s)",
             )
             from riff.audio.song import SongPlayer
+
             player = SongPlayer(audio)
             player.start()
             try:
@@ -220,9 +230,10 @@ class ComposeCommands:
         ).start()
 
     def _do_generate_timed(self) -> None:
-        from riff.ai.phrase import PhraseEngine
         from riff.ai.generate import _notes_to_midi
+        from riff.ai.phrase import PhraseEngine
         from riff.audio.song import SongData
+
         self._state.update(gen_status="generating...", status_msg="Generating...")
         try:
             engine = PhraseEngine()
@@ -237,7 +248,9 @@ class ComposeCommands:
                 gen_status="done",
                 gen_note_count=len(notes),
                 gen_duration=song.total_duration,
-                status_msg=f"{len(notes)} notes — [l] listen  [s] save  [p] play mix  [g] regenerate",
+                status_msg=(
+                    f"{len(notes)} notes — [l] listen  [s] save  [p] play mix  [g] regenerate"
+                ),
             )
         except Exception as exc:
             self._state.update(gen_status="", status_msg=f"Generate error: {exc}")
@@ -246,7 +259,8 @@ class ComposeCommands:
         if self.generated_audio is None:
             self._state.update(status_msg="No audio to save — generate first")
             return
-        from riff.audio.mix import save_wav, mix_audio
+        from riff.audio.mix import mix_audio, save_wav
+
         if self.source_audio is not None:
             audio = mix_audio(self.source_audio, self.generated_audio)
         else:
@@ -264,6 +278,7 @@ class ComposeCommands:
             self._state.update(status_msg="No audio to mix — load a file and generate first")
             return
         from riff.audio.mix import mix_audio
+
         mixed = mix_audio(self.source_audio, self.generated_audio)
         self._state.update(status_msg="Playing mix...")
         threading.Thread(
@@ -274,7 +289,8 @@ class ComposeCommands:
         ).start()
 
     def _play_mixed(self, audio) -> None:
-        from riff.audio.song import SongPlayer, SAMPLE_RATE
+        from riff.audio.song import SAMPLE_RATE, SongPlayer
+
         duration = len(audio) / SAMPLE_RATE
         player = SongPlayer(audio)
         player.start()

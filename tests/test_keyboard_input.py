@@ -1,7 +1,7 @@
 """Tests for file loading via ComposeCommands (migrated from KeyboardHandler)."""
 
-import tempfile
 import os
+import tempfile
 import time
 
 import numpy as np
@@ -84,6 +84,7 @@ class TestFileLoading:
 
     def test_tab_complete_path(self, tmp_path):
         from riff.ui.file_input import complete_path
+
         (tmp_path / "unique_song.mid").touch()
 
         matches = complete_path(str(tmp_path / "unique"))

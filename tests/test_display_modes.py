@@ -3,8 +3,8 @@
 from rich.console import Console, Group
 
 from riff.core.state import AppState
-from riff.ui.widgets.riff_panel import RiffPanel, _free_content, _compose_content
 from riff.ui.widgets.controls_bar import ControlsBar
+from riff.ui.widgets.riff_panel import _compose_content, _free_content
 
 
 def _render_to_str(renderable) -> str:
@@ -155,7 +155,9 @@ class TestComposeMode:
         assert "listening" in rendered or "play to capture" in rendered
 
     def test_shows_gen_status_playing(self):
-        snap = self._snap_with_chords(["Am", "F"], gen_status="playing", gen_note_count=20, gen_duration=8.0)
+        snap = self._snap_with_chords(
+            ["Am", "F"], gen_status="playing", gen_note_count=20, gen_duration=8.0
+        )
 
         content = _compose_content(snap, wf_height=5)
         rendered = _render_to_str(content)

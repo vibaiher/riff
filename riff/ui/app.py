@@ -7,9 +7,10 @@ import time
 from textual.app import App
 
 from riff.core.commands import ComposeCommands
-from riff.core.state import AppState, MODES
-from .screens.welcome import WelcomeScreen
+from riff.core.state import MODES, AppState
+
 from .screens.main import MainScreen
+from .screens.welcome import WelcomeScreen
 
 
 class RiffApp(App):
@@ -37,8 +38,8 @@ class RiffApp(App):
 
     def _start_audio(self) -> None:
         try:
-            from riff.audio.capture import AudioCapture
             from riff.audio.analyzer import AudioAnalyzer
+            from riff.audio.capture import AudioCapture
 
             self._capture = AudioCapture(self.state)
             self.state.set_audio_queue(self._capture.audio_queue)

@@ -18,9 +18,7 @@ from riff.audio.song import SongNote
 class MelodyEngine(Protocol):
     name: str
 
-    def generate(
-        self, chords: list[Chord], bars: int = 4, bpm: int = 120
-    ) -> list[SongNote]: ...
+    def generate(self, chords: list[Chord], bars: int = 4, bpm: int = 120) -> list[SongNote]: ...
 
 
 _registry: dict[str, MelodyEngine] = {}

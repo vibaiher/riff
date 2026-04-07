@@ -8,7 +8,11 @@ from rich.text import Text
 from textual.widgets import Static
 
 from riff.ui.palette import (
-    YOU_COLOR, RIFF_COLOR, LABEL_DIM, META_KEY, META_VAL,
+    LABEL_DIM,
+    META_KEY,
+    META_VAL,
+    RIFF_COLOR,
+    YOU_COLOR,
 )
 
 

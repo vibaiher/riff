@@ -15,6 +15,7 @@ warnings.filterwarnings("ignore", message="Couldn't find ffmpeg", category=Runti
 
 def main() -> None:
     from riff.ui.app import RiffApp
+
     app = RiffApp()
     app.run()
 

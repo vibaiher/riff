@@ -48,6 +48,7 @@ class TestAudioFileLoad:
 
     def test_load_midi_sets_midi_source_type(self):
         import pretty_midi
+
         state, cmds = self._make(mode_index=1)
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -68,9 +69,7 @@ class TestAudioFileLoad:
         state, cmds = self._make(mode_index=1)
         state.set_audio_queue(q)
         cmds.source_type = "audio"
-        cmds.source_audio = np.sin(
-            2 * np.pi * 440 * np.arange(44100) / 44100
-        ).astype(np.float32)
+        cmds.source_audio = np.sin(2 * np.pi * 440 * np.arange(44100) / 44100).astype(np.float32)
         state.update(compose_phase="loaded")
 
         cmds.listen_source()
@@ -94,8 +93,9 @@ class TestAudioFileLoad:
 
 
 def _write_sine_wav(path: str, duration: float = 1.0, freq: float = 440.0):
-    import wave
     import struct
+    import wave
+
     sr = 44100
     n = int(sr * duration)
     samples = [int(32767 * np.sin(2 * np.pi * freq * i / sr)) for i in range(n)]

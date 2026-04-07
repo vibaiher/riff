@@ -2,18 +2,21 @@
 
 import pytest
 
-from riff.ai.engine import MelodyEngine, get_engine, list_engines, register_engine, unregister_engine
-from riff.core.state import refresh_engines
+from riff.ai.engine import (
+    get_engine,
+    list_engines,
+    register_engine,
+    unregister_engine,
+)
 from riff.audio.chords import Chord, parse_progression
 from riff.audio.song import SongNote
+from riff.core.state import refresh_engines
 
 
 class DummyEngine:
     name = "dummy"
 
-    def generate(
-        self, chords: list[Chord], bars: int = 4, bpm: int = 120
-    ) -> list[SongNote]:
+    def generate(self, chords: list[Chord], bars: int = 4, bpm: int = 120) -> list[SongNote]:
         return [SongNote(note="C", octave=4, start=0.0, duration=0.5)]
 
 

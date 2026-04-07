@@ -20,9 +20,9 @@ import threading
 import librosa
 import numpy as np
 
-logger = logging.getLogger(__name__)
-
 from .capture import BLOCK_SIZE, SAMPLE_RATE
+
+logger = logging.getLogger(__name__)
 
 # ── Analysis constants ────────────────────────────────────────────────────────
 

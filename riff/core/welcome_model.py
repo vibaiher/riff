@@ -35,7 +35,9 @@ def _load_audio():
         return _audio
 
     import pathlib
+
     import numpy as np
+
     from riff.audio.song import SongData
 
     midi_path = pathlib.Path(__file__).parent.parent / "assets" / "zombie.mid"

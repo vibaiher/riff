@@ -23,6 +23,7 @@ def _get_engines() -> list[str]:
     global _engine_list
     if _engine_list is None:
         from riff.ai.engine import list_engines
+
         _engine_list = list_engines()
     return _engine_list
 
@@ -31,6 +32,7 @@ def refresh_engines() -> None:
     """Force re-read of engine list (call after registering new engines)."""
     global _engine_list
     _engine_list = None
+
 
 SPEEDS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5]
 
@@ -66,8 +68,8 @@ class AppState:
     compose_phase: str = ""  # "", "loaded", "listening", "generated"
 
     # ── Input mode (file picker, etc.) ──────────────────────────────────────
-    input_mode: str = ""       # "" = normal, "file" = typing a file path
-    input_buffer: str = ""     # text being typed
+    input_mode: str = ""  # "" = normal, "file" = typing a file path
+    input_buffer: str = ""  # text being typed
 
     # ── System ────────────────────────────────────────────────────────────────
     device_name: str = "Detecting..."
@@ -114,11 +116,8 @@ class AppState:
 
     def _get_valid_fields(self) -> set:
         cls = type(self)
-        if not hasattr(cls, '_cached_fields') or cls._cached_fields is None:
-            cls._cached_fields = {
-                f for f in self.__dataclass_fields__
-                if not f.startswith("_")
-            }
+        if not hasattr(cls, "_cached_fields") or cls._cached_fields is None:
+            cls._cached_fields = {f for f in self.__dataclass_fields__ if not f.startswith("_")}
         return cls._cached_fields
 
     def update(self, **kwargs) -> None:

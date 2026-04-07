@@ -112,6 +112,7 @@ class AudioCapture:
             self._drop_count = getattr(self, "_drop_count", 0) + 1
             if self._drop_count % 100 == 1:
                 import logging
+
                 logging.getLogger(__name__).debug(
                     "Audio queue full — dropped %d blocks", self._drop_count
                 )

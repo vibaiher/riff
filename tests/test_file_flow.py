@@ -91,9 +91,7 @@ class TestFileLoadFlow:
     def test_load_midi_auto_listens(self):
         state = AppState(mode_index=1)
         cmds = ComposeCommands(state)
-        midi_path = os.path.join(
-            os.path.dirname(__file__), "..", "riff", "assets", "zombie.mid"
-        )
+        midi_path = os.path.join(os.path.dirname(__file__), "..", "riff", "assets", "zombie.mid")
 
         cmds.load_file(midi_path)
 

@@ -7,11 +7,11 @@ from textual.binding import Binding
 from textual.screen import Screen
 from textual.widgets import Input
 
+from riff.ui.widgets.controls_bar import ControlsBar
 from riff.ui.widgets.header import LogoHeader
-from riff.ui.widgets.you_panel import YouPanel
 from riff.ui.widgets.riff_panel import RiffPanel
 from riff.ui.widgets.status_bar import StatusBar
-from riff.ui.widgets.controls_bar import ControlsBar
+from riff.ui.widgets.you_panel import YouPanel
 
 
 class MainScreen(Screen):
@@ -170,8 +170,10 @@ class MainScreen(Screen):
             event.prevent_default()
             event.stop()
         elif self._input_active and event.key == "tab":
-            from riff.ui.file_input import complete_path
             import os
+
+            from riff.ui.file_input import complete_path
+
             file_input = self.query_one("#file_input", Input)
             current = file_input.value
             matches = complete_path(current)
@@ -190,7 +192,8 @@ class MainScreen(Screen):
         if self._input_active or not self._is_compose():
             return
         phase = self._state.snapshot()["compose_phase"]
-        if phase in ("loaded", "generated") and self._cmds.source_type == "midi" and self._cmds._timed_chords:
+        has_timed = self._cmds.source_type == "midi" and self._cmds._timed_chords
+        if phase in ("loaded", "generated") and has_timed:
             self._cmds.generate_from_file()
         else:
             self._cmds.generate()

@@ -1,9 +1,8 @@
 """Tests for file input mode with tab-completion."""
 
 import os
-import tempfile
 
-from riff.ui.file_input import complete_path, InputBuffer
+from riff.ui.file_input import InputBuffer, complete_path
 
 
 class TestCompletePath:

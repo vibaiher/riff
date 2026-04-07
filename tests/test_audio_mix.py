@@ -6,7 +6,7 @@ import wave
 
 import numpy as np
 
-from riff.audio.mix import mix_audio, save_wav, SAMPLE_RATE
+from riff.audio.mix import SAMPLE_RATE, mix_audio, save_wav
 
 
 class TestMixAudio:

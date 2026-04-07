@@ -9,22 +9,27 @@ CHROMATIC = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 # Enharmonic mapping for flats → sharps (internal representation)
 _ENHARMONIC = {
-    "Db": "C#", "Eb": "D#", "Fb": "E", "Gb": "F#",
-    "Ab": "G#", "Bb": "A#", "Cb": "B",
+    "Db": "C#",
+    "Eb": "D#",
+    "Fb": "E",
+    "Gb": "F#",
+    "Ab": "G#",
+    "Bb": "A#",
+    "Cb": "B",
 }
 
 # Intervals as semitones from root
 _QUALITY_INTERVALS: dict[str, list[int]] = {
     "major": [0, 4, 7],
     "minor": [0, 3, 7],
-    "7":     [0, 4, 7, 10],
-    "m7":    [0, 3, 7, 10],
-    "maj7":  [0, 4, 7, 11],
-    "dim":   [0, 3, 6],
-    "dim7":  [0, 3, 6, 9],
-    "aug":   [0, 4, 8],
-    "sus4":  [0, 5, 7],
-    "sus2":  [0, 2, 7],
+    "7": [0, 4, 7, 10],
+    "m7": [0, 3, 7, 10],
+    "maj7": [0, 4, 7, 11],
+    "dim": [0, 3, 6],
+    "dim7": [0, 3, 6, 9],
+    "aug": [0, 4, 8],
+    "sus4": [0, 5, 7],
+    "sus2": [0, 2, 7],
 }
 
 # Scale intervals (semitones from root)
@@ -83,8 +88,16 @@ class Chord:
 
 
 _QUALITY_SUFFIX = {
-    "major": "", "minor": "m", "7": "7", "m7": "m7", "maj7": "maj7",
-    "dim": "dim", "dim7": "dim7", "aug": "aug", "sus4": "sus4", "sus2": "sus2",
+    "major": "",
+    "minor": "m",
+    "7": "7",
+    "m7": "m7",
+    "maj7": "maj7",
+    "dim": "dim",
+    "dim7": "dim7",
+    "aug": "aug",
+    "sus4": "sus4",
+    "sus2": "sus2",
 }
 
 

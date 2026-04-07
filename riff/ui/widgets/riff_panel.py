@@ -10,8 +10,12 @@ from rich.text import Text
 from textual.widgets import Static
 
 from riff.ui.palette import (
-    RIFF_COLOR, RIFF_BORDER, RIFF_BG,
-    LABEL_DIM, META_KEY, META_VAL,
+    LABEL_DIM,
+    META_KEY,
+    META_VAL,
+    RIFF_BG,
+    RIFF_BORDER,
+    RIFF_COLOR,
 )
 
 _MODE_TITLES: dict[str, str] = {
@@ -31,6 +35,7 @@ class RiffPanel(Static):
 
     def render(self):
         from rich.panel import Panel
+
         snap = self._snap
         mode = snap.get("mode", "FREE")
         title = _MODE_TITLES.get(mode, f"RIFF · {mode}")

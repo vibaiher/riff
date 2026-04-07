@@ -6,10 +6,10 @@ from rich.console import Console
 from riff.core.state import AppState
 from riff.ui.app import RiffApp
 from riff.ui.screens.main import MainScreen
-from riff.ui.widgets.you_panel import YouPanel
+from riff.ui.widgets.controls_bar import ControlsBar
 from riff.ui.widgets.riff_panel import RiffPanel
 from riff.ui.widgets.status_bar import StatusBar
-from riff.ui.widgets.controls_bar import ControlsBar
+from riff.ui.widgets.you_panel import YouPanel
 
 
 def _render_to_str(renderable) -> str:

@@ -5,16 +5,20 @@ from __future__ import annotations
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Center, Middle
+from textual.containers import Center
 from textual.screen import Screen
 from textual.widgets import Static
 
 from riff.core.state import MODES
+from riff.core.welcome_model import WelcomeModel, fake_waveform
 from riff.ui.palette import (
-    LOGO, YOU_COLOR, RIFF_COLOR, RIFF_BORDER,
-    LABEL_DIM, META_VAL, META_KEY, SEP_COLOR,
+    LABEL_DIM,
+    LOGO,
+    META_KEY,
+    META_VAL,
+    RIFF_COLOR,
+    YOU_COLOR,
 )
-from riff.core.welcome_model import fake_waveform, WelcomeModel
 from riff.ui.widgets.waveform_display import WaveformDisplay
 
 _MODE_DESCRIPTIONS: dict[str, str] = {
@@ -120,10 +124,12 @@ class WelcomeScreen(Screen):
         self.set_interval(1 / 20, self._update_waveform)
         self._start_time = 0.0
         import time
+
         self._start_time = time.time()
 
     def _update_waveform(self) -> None:
         import time
+
         t = time.time() - self._start_time
         wf = self.query_one("#waveform", WaveformDisplay)
         size = wf.size

@@ -7,7 +7,7 @@ from rich.console import Group
 from rich.text import Text
 from textual.widgets import Static
 
-from riff.ui.palette import LOGO, YOU_COLOR, META_VAL
+from riff.ui.palette import LOGO, META_VAL, YOU_COLOR
 
 
 class LogoHeader(Static):
