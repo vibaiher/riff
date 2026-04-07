@@ -28,19 +28,14 @@ def find_input_device() -> tuple[int, str]:
     """
     Return (device_index, device_name) for the preferred input device.
 
+    Uses the system default input so the user controls which device
+    RIFF listens to via macOS Sound preferences (or equivalent).
+
     Search order:
-      1. Focusrite Scarlett Solo (or any Focusrite/Scarlett device)
-      2. sounddevice system default input
-      3. First device with at least one input channel
+      1. System default input
+      2. First device with at least one input channel
     """
     devices = sd.query_devices()
-
-    for idx, dev in enumerate(devices):
-        name_lower = dev["name"].lower()
-        if ("scarlett" in name_lower or "focusrite" in name_lower) and dev[
-            "max_input_channels"
-        ] > 0:
-            return idx, dev["name"]
 
     default_idx = sd.default.device[0]
     if isinstance(default_idx, int) and default_idx >= 0:

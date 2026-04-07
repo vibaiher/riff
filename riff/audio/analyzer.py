@@ -165,6 +165,9 @@ class AudioAnalyzer:
             pass
 
     def _process(self, chunk: np.ndarray) -> None:
+        if not self.state.snapshot().get("capture_enabled", True):
+            return
+
         # ── 1. Feed rolling buffers ───────────────────────────────────────────
         self._waveform_buf.extend(chunk)
         self._bpm_buf.extend(chunk)
@@ -187,12 +190,16 @@ class AudioAnalyzer:
                 freq = self._detect_pitch(audio)
                 if freq is not None:
                     note, octave = freq_to_note(freq)
+                    chords = note_to_chords(note)
                     updates.update(
                         frequency=freq,
                         note=note,
                         octave=octave,
-                        chords=note_to_chords(note),
+                        chords=chords,
                     )
+                    # Feed first suggested chord into accumulation buffer (COMPOSE mode only)
+                    if chords and self.state.snapshot().get("mode") == "COMPOSE":
+                        self.state.add_chord(chords[0])
                 else:
                     updates.update(note="—", frequency=0.0, chords=[])
             else:
