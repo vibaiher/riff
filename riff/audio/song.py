@@ -70,8 +70,9 @@ class SongData:
     def render_audio(self) -> np.ndarray:
         if self._midi is None or not self.notes:
             return np.array([], dtype=np.float32)
-        audio = self._midi.synthesize(fs=SAMPLE_RATE)
-        return audio.astype(np.float32)
+        from riff.audio.synth import render
+
+        return render(self._midi)
 
     @classmethod
     def from_file(cls, path: str) -> SongData:
