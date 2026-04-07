@@ -5,6 +5,7 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.screen import Screen
+from textual.widgets import Input
 
 from riff.ui.widgets.header import LogoHeader
 from riff.ui.widgets.you_panel import YouPanel
@@ -49,7 +50,22 @@ class MainScreen(Screen):
     #controls {
         height: 1;
     }
+    #file_input {
+        display: none;
+        height: 1;
+        dock: bottom;
+    }
+    #file_input.visible {
+        display: block;
+    }
+    #file_input:focus {
+        border: none;
+    }
     """
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._input_active = False
 
     def compose(self) -> ComposeResult:
         yield LogoHeader(id="header")
@@ -57,6 +73,9 @@ class MainScreen(Screen):
         yield RiffPanel(id="riff")
         yield StatusBar(id="status")
         yield ControlsBar(id="controls")
+        inp = Input(placeholder="file path (tab to complete)...", id="file_input")
+        inp.can_focus = False
+        yield inp
 
     def on_mount(self) -> None:
         self.set_interval(1 / 20, self._poll_state)
@@ -85,34 +104,90 @@ class MainScreen(Screen):
         return self._state.snapshot()["mode"] == "COMPOSE"
 
     def action_toggle_mute(self) -> None:
+        if self._input_active:
+            return
         self._state.toggle_mute()
 
     def action_next_mode(self) -> None:
+        if self._input_active:
+            return
         self._state.next_mode()
 
     def action_next_timbre(self) -> None:
+        if self._input_active:
+            return
         self._state.next_timbre()
 
     def action_next_engine(self) -> None:
+        if self._input_active:
+            return
         self._state.next_engine()
 
     def action_quit_app(self) -> None:
+        if self._input_active:
+            return
         self._state.update(running=False)
         self.app.exit()
 
     def action_speed_down(self) -> None:
+        if self._input_active:
+            return
         self._state.speed_down()
 
     def action_speed_up(self) -> None:
+        if self._input_active:
+            return
         self._state.speed_up()
 
     def action_load_file(self) -> None:
-        if not self._is_compose():
+        if self._input_active or not self._is_compose():
             return
-        self.app.push_screen("file_input")
+        self._input_active = True
+        file_input = self.query_one("#file_input", Input)
+        file_input.can_focus = True
+        file_input.add_class("visible")
+        file_input.value = ""
+        file_input.focus()
+
+    def _close_input(self) -> None:
+        self._input_active = False
+        file_input = self.query_one("#file_input", Input)
+        file_input.remove_class("visible")
+        file_input.value = ""
+        file_input.can_focus = False
+        self.focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "file_input":
+            path = event.value.strip()
+            self._close_input()
+            if path:
+                self._cmds.load_file(path)
+
+    def on_key(self, event) -> None:
+        if self._input_active and event.key == "escape":
+            self._close_input()
+            event.prevent_default()
+            event.stop()
+        elif self._input_active and event.key == "tab":
+            from riff.ui.file_input import complete_path
+            import os
+            file_input = self.query_one("#file_input", Input)
+            current = file_input.value
+            matches = complete_path(current)
+            if len(matches) == 1:
+                file_input.value = matches[0]
+                file_input.cursor_position = len(matches[0])
+            elif matches:
+                prefix = os.path.commonprefix(matches)
+                if prefix:
+                    file_input.value = prefix
+                    file_input.cursor_position = len(prefix)
+            event.prevent_default()
+            event.stop()
 
     def action_generate(self) -> None:
-        if not self._is_compose():
+        if self._input_active or not self._is_compose():
             return
         phase = self._state.snapshot()["compose_phase"]
         if phase in ("loaded", "generated") and self._cmds.source_type == "midi" and self._cmds._timed_chords:
@@ -121,25 +196,25 @@ class MainScreen(Screen):
             self._cmds.generate()
 
     def action_clear(self) -> None:
-        if not self._is_compose():
+        if self._input_active or not self._is_compose():
             return
         self._cmds.clear()
 
     def action_listen(self) -> None:
-        if not self._is_compose():
+        if self._input_active or not self._is_compose():
             return
         phase = self._state.snapshot()["compose_phase"]
         if phase in ("loaded", "generated"):
             self._cmds.listen_source()
 
     def action_save(self) -> None:
-        if not self._is_compose():
+        if self._input_active or not self._is_compose():
             return
         if self._state.snapshot()["compose_phase"] == "generated":
             self._cmds.save()
 
     def action_play_mix(self) -> None:
-        if not self._is_compose():
+        if self._input_active or not self._is_compose():
             return
         if self._state.snapshot()["compose_phase"] == "generated":
             self._cmds.play_mix()
