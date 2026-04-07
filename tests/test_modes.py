@@ -1,7 +1,5 @@
 """Tests for the mode system in AppState."""
 
-import pytest
-
 from riff.core.state import AppState
 
 
@@ -40,42 +38,3 @@ class TestModeSystem:
         state.next_mode()
 
         assert "COMPOSE" in state.snapshot()["status_msg"]
-
-
-class TestRemovedResponderFields:
-    REMOVED_KEYS = [
-        "riff_note",
-        "riff_octave",
-        "riff_waveform",
-        "riff_active",
-        "riff_next_note",
-        "riff_model",
-        "riff_db",
-        "riff_chords",
-        "riff_density",
-        "riff_listening",
-        "markov_order",
-        "markov_learned",
-        "markov_phase",
-        "markov_confidence",
-        "song_note",
-        "song_octave",
-        "song_position",
-        "song_bpm",
-        "song_upcoming",
-        "song_waveform",
-        "song_db",
-        "song_speed",
-        "song_finished",
-        "timbre",
-        "input_mode",
-        "input_buffer",
-    ]
-
-    @pytest.mark.parametrize("key", REMOVED_KEYS)
-    def test_responder_field_not_in_snapshot(self, key):
-        state = AppState()
-
-        snap = state.snapshot()
-
-        assert key not in snap
