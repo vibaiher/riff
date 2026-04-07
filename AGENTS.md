@@ -32,6 +32,20 @@ Riff never plays and listens at the same time. Every exercise has two sequential
 
 ---
 
+## Before committing
+
+Both must pass with zero errors before any commit:
+
+```bash
+uv run ruff check riff/ tests/    # linter
+uv run ruff format --check riff/ tests/  # formatter
+uv run pytest                      # tests
+```
+
+Use `uv run ruff check --fix` and `uv run ruff format` to auto-fix. Ruff config is in `pyproject.toml`.
+
+---
+
 ## Environment
 
 - **Platform**: macOS (MacBook Air), iTerm2
