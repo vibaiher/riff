@@ -13,27 +13,17 @@ class TestModeSystem:
 
         assert result == "FREE"
 
-    def test_next_mode_cycles_free_to_practice(self):
+    def test_next_mode_cycles_free_to_compose(self):
         state = AppState()
 
         state.next_mode()
 
-        assert state.mode == "PRACTICE"
-
-    def test_next_mode_cycles_practice_to_ear_training(self):
-        state = AppState()
-        state.next_mode()
-
-        state.next_mode()
-
-        assert state.mode == "EAR_TRAINING"
+        assert state.mode == "COMPOSE"
 
     def test_next_mode_wraps_around_to_free(self):
         state = AppState()
-        state.next_mode()
-        state.next_mode()
-
-        state.next_mode()
+        for _ in range(2):
+            state.next_mode()
 
         assert state.mode == "FREE"
 
@@ -49,7 +39,7 @@ class TestModeSystem:
 
         state.next_mode()
 
-        assert "PRACTICE" in state.snapshot()["status_msg"]
+        assert "COMPOSE" in state.snapshot()["status_msg"]
 
 
 class TestRemovedResponderFields:

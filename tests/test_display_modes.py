@@ -22,21 +22,13 @@ class TestRiffPanelTitle:
         panel = layout["riff"].renderable
         assert "FREE" in str(panel.title)
 
-    def test_practice_mode_panel_title_contains_practice(self):
-        snap = _snap_with_mode("PRACTICE")
+    def test_compose_mode_panel_title_contains_compose(self):
+        snap = _snap_with_mode("COMPOSE")
 
         layout = build_layout(snap, term_height=42, term_width=146)
 
         panel = layout["riff"].renderable
-        assert "PRACTICE" in str(panel.title)
-
-    def test_ear_training_mode_panel_title_contains_ear_training(self):
-        snap = _snap_with_mode("EAR_TRAINING")
-
-        layout = build_layout(snap, term_height=42, term_width=146)
-
-        panel = layout["riff"].renderable
-        assert "EAR TRAINING" in str(panel.title)
+        assert "COMPOSE" in str(panel.title)
 
 
 class TestControlsBar:
@@ -48,13 +40,34 @@ class TestControlsBar:
         plain = text.plain
         assert "mode" in plain
 
-    def test_controls_bar_shows_speed(self):
+    def test_controls_bar_shows_generate(self):
         snap = AppState().snapshot()
 
         text = _controls_bar(snap)
 
         plain = text.plain
-        assert "speed" in plain
+        assert "generate" in plain
+
+
+class TestControlsBarInputMode:
+    def test_input_mode_shows_prompt_with_buffer(self):
+        state = AppState(mode_index=1)
+        state.start_input("file")
+        state.update(input_buffer="/tmp/song")
+        snap = state.snapshot()
+
+        text = _controls_bar(snap)
+
+        plain = text.plain
+        assert "/tmp/song" in plain
+
+    def test_controls_bar_shows_f_load(self):
+        snap = AppState().snapshot()
+
+        text = _controls_bar(snap)
+
+        plain = text.plain
+        assert "load" in plain
 
 
 class TestKeyboardHandler:
@@ -66,7 +79,7 @@ class TestKeyboardHandler:
 
         kb._handle("m")
 
-        assert state.mode == "PRACTICE"
+        assert state.mode == "COMPOSE"
 
     def test_t_key_changes_timbre(self):
         state = AppState()
@@ -127,68 +140,76 @@ def _render_parts(parts) -> str:
     return capture.get()
 
 
-class TestFreeModeWithSong:
-    def _snap_with_song(self, **overrides) -> dict:
-        state = AppState()
-        defaults = {
-            "song_note": "E",
-            "song_octave": 4,
-            "song_db": -30.0,
-            "song_waveform": [0.5] * 48,
-            "song_bpm": 120.0,
-            "song_position": 10.0,
-            "song_upcoming": ["F4", "G4", "A4"],
-        }
-        defaults.update(overrides)
-        state.update(**defaults)
-        return state.snapshot()
+class TestFreeMode:
+    def test_free_shows_play_prompt_when_silent(self):
+        snap = _snap_with_mode("FREE")
 
-    def test_shows_note_badge(self):
-        snap = self._snap_with_song(song_note="E", song_octave=4)
+        content = _mode_content("FREE", snap, wf_height=5, n_bars=40)
+        rendered = _render_parts(content)
+
+        assert "play something" in rendered
+
+    def test_free_shows_note_when_playing(self):
+        state = AppState()
+        state.update(note="E", octave=4, bpm=120.0)
+        snap = state.snapshot()
 
         content = _mode_content("FREE", snap, wf_height=5, n_bars=40)
         rendered = _render_parts(content)
 
         assert "E4" in rendered
 
-    def test_shows_db_level_bar(self):
-        snap = self._snap_with_song(song_db=-30.0)
 
-        content = _mode_content("FREE", snap, wf_height=5, n_bars=40)
+class TestComposeMode:
+    def _snap_with_chords(self, chords: list[str], **overrides) -> dict:
+        state = AppState()
+        state.update(mode_index=1)  # COMPOSE
+        for ch in chords:
+            state.add_chord(ch)
+        if overrides:
+            state.update(**overrides)
+        return state.snapshot()
+
+    def test_shows_captured_chords(self):
+        snap = self._snap_with_chords(["Am", "F", "C", "G"])
+
+        content = _mode_content("COMPOSE", snap, wf_height=5, n_bars=40)
         rendered = _render_parts(content)
 
-        assert "dB" in rendered
+        assert "Am" in rendered
+        assert "G" in rendered
 
-    def test_shows_waveform_blocks(self):
-        snap = self._snap_with_song(song_waveform=[0.8] * 48)
+    def test_shows_generate_hint_with_chords(self):
+        snap = self._snap_with_chords(["Am", "F"])
 
-        content = _mode_content("FREE", snap, wf_height=5, n_bars=40)
+        content = _mode_content("COMPOSE", snap, wf_height=5, n_bars=40)
         rendered = _render_parts(content)
 
-        assert "█" in rendered or "▇" in rendered or "▆" in rendered
+        assert "generate" in rendered or "[g]" in rendered
 
-    def test_shows_upcoming_as_chord_pills(self):
-        snap = self._snap_with_song(song_upcoming=["D4", "E4", "F4"])
+    def test_shows_engine_in_meta(self):
+        snap = self._snap_with_chords(["Am"])
 
-        content = _mode_content("FREE", snap, wf_height=5, n_bars=40)
+        content = _mode_content("COMPOSE", snap, wf_height=5, n_bars=40)
         rendered = _render_parts(content)
 
-        assert "[D4]" in rendered
-        assert "[E4]" in rendered
+        assert "engine" in rendered
+        assert "phrase" in rendered
 
-    def test_shows_meta_with_bpm_and_position(self):
-        snap = self._snap_with_song(song_bpm=140.0, song_position=65.0)
+    def test_shows_listening_when_no_chords(self):
+        state = AppState()
+        state.update(mode_index=1)
+        snap = state.snapshot()
 
-        content = _mode_content("FREE", snap, wf_height=5, n_bars=40)
+        content = _mode_content("COMPOSE", snap, wf_height=5, n_bars=40)
         rendered = _render_parts(content)
 
-        assert "140" in rendered
-        assert "1:05" in rendered
+        assert "listening" in rendered or "play to capture" in rendered
 
-    def test_shows_placeholder_when_no_song(self):
-        snap = _snap_with_mode("FREE")
+    def test_shows_gen_status_playing(self):
+        snap = self._snap_with_chords(["Am", "F"], gen_status="playing", gen_note_count=20, gen_duration=8.0)
 
-        content = _mode_content("FREE", snap, wf_height=5, n_bars=40)
+        content = _mode_content("COMPOSE", snap, wf_height=5, n_bars=40)
         rendered = _render_parts(content)
 
-        assert "metrics coming soon" in rendered
+        assert "playing" in rendered

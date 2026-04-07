@@ -267,8 +267,7 @@ def _you_panel(snap: dict, wf_height: int, show_chords: bool, n_bars: int) -> Pa
 
 _MODE_TITLES: dict[str, str] = {
     "FREE": "RIFF · FREE",
-    "PRACTICE": "RIFF · PRACTICE",
-    "EAR_TRAINING": "RIFF · EAR TRAINING",
+    "COMPOSE": "RIFF · COMPOSE",
 }
 
 
@@ -289,66 +288,106 @@ def _riff_panel(snap: dict, wf_height: int, show_chords: bool, n_bars: int) -> P
     )
 
 
-_MODE_PLACEHOLDERS: dict[str, str] = {
-    "FREE": "metrics coming soon",
-    "PRACTICE": "exercises coming soon",
-    "EAR_TRAINING": "ear training coming soon",
-}
-
-
 def _mode_content(
     mode: str, snap: dict, wf_height: int, n_bars: int, show_chords: bool = True
 ) -> list:
     if mode == "FREE":
         return _free_mode_content(snap, wf_height, n_bars, show_chords)
-    message = _MODE_PLACEHOLDERS.get(mode, mode)
-    t = Text()
-    t.append("\n")
-    t.append(f"  {message}", style=META_VAL)
-    for _ in range(wf_height):
-        t.append("\n")
-    return [t]
+    if mode == "COMPOSE":
+        return _compose_mode_content(snap, wf_height, n_bars)
+    return _free_mode_content(snap, wf_height, n_bars, show_chords)
 
 
 def _free_mode_content(snap: dict, wf_height: int, n_bars: int, show_chords: bool = True) -> list:
-    song_note = snap.get("song_note", "—")
-    song_octave = snap.get("song_octave", 4)
-    song_db = snap.get("song_db", -80.0)
-    song_bpm = snap.get("song_bpm", 0.0)
-    song_position = snap.get("song_position", 0.0)
-    song_upcoming = snap.get("song_upcoming", [])
-    song_waveform = snap.get("song_waveform", [])
-    has_song = song_note != "—" or song_bpm > 0 or song_position > 0
+    """FREE mode — just show what the user is playing, nothing more."""
+    note = snap.get("note", "—")
+    bpm = snap.get("bpm", 0.0)
 
-    if not has_song:
-        t = Text()
+    t = Text()
+    t.append("\n")
+    if note != "—":
+        t.append(f"  {note}{snap.get('octave', 4)}", style=f"bold {RIFF_COLOR}")
+        if bpm > 0:
+            t.append(f"   ♩ {bpm:.0f}", style=META_VAL)
+    else:
+        t.append("  play something...", style=LABEL_DIM)
+
+    for _ in range(wf_height):
         t.append("\n")
-        t.append("  metrics coming soon", style=META_VAL)
-        for _ in range(wf_height):
-            t.append("\n")
-        return [t]
 
-    parts: list = [
-        _note_bar_row(song_note, song_octave, song_db, RIFF_COLOR),
-        _waveform_block(song_waveform, RIFF_COLOR, wf_height, n_bars),
-    ]
-    if show_chords and song_upcoming:
-        parts.append(_chord_pills(song_upcoming, RIFF_COLOR))
+    return [t]
 
-    song_speed = snap.get("song_speed", 1.0)
-    meta_items: list[tuple[str, str]] = []
-    if song_bpm > 0:
-        meta_items.append(("tempo", f"♩ {song_bpm:.0f}"))
-    if song_speed != 1.0:
-        meta_items.append(("speed", f"{song_speed}x"))
-    if song_position > 0:
-        mins = int(song_position) // 60
-        secs = int(song_position) % 60
-        meta_items.append(("position", f"{mins}:{secs:02d}"))
-    if meta_items:
-        parts.append(_meta_line(meta_items))
 
-    return parts
+def _compose_mode_content(snap: dict, wf_height: int, n_bars: int) -> list:
+    """COMPOSE mode — accumulate chords, generate melodies."""
+    captured = snap.get("captured_chords", [])
+    gen_status = snap.get("gen_status", "")
+    engine = snap.get("engine", "phrase")
+    phase = snap.get("compose_phase", "")
+    attached = snap.get("attached_file", "")
+    filename = os.path.basename(attached) if attached else ""
+
+    t = Text()
+
+    # Line 1: file info or captured progression
+    t.append("\n")
+    if phase == "listening" and filename:
+        t.append("  ♫ playing ", style=f"bold {RIFF_COLOR}")
+        t.append(filename, style=META_VAL)
+        t.append("  — detecting chords...", style=META_KEY)
+    elif captured:
+        t.append("  chords: ", style=META_KEY)
+        visible = captured[-12:]
+        if len(captured) > 12:
+            t.append("... ", style=LABEL_DIM)
+        for i, ch in enumerate(visible):
+            if i > 0:
+                t.append(" → ", style=LABEL_DIM)
+            t.append(ch, style=f"bold {RIFF_COLOR}")
+    elif filename:
+        t.append(f"  ♫ {filename}", style=META_VAL)
+    else:
+        t.append("  play to capture chords — ", style=META_KEY)
+        t.append("[g]", style=META_VAL)
+        t.append(" generate  ", style=META_KEY)
+        t.append("[c]", style=META_VAL)
+        t.append(" clear", style=META_KEY)
+
+    # Line 2: status
+    t.append("\n")
+    if gen_status:
+        t.append(f"  {gen_status}", style=f"bold {RIFF_COLOR}")
+        if gen_status == "playing":
+            count = snap.get("gen_note_count", 0)
+            dur = snap.get("gen_duration", 0.0)
+            t.append(f"  ({count} notes, {dur:.1f}s)", style=META_VAL)
+    elif phase == "listening":
+        if captured:
+            t.append(f"  {len(captured)} chords detected so far", style=META_KEY)
+        else:
+            t.append("  listening...", style=LABEL_DIM)
+    elif captured:
+        t.append(f"  {len(captured)} chords captured — press ", style=META_KEY)
+        t.append("[g]", style=META_VAL)
+        t.append(f" to generate ({engine})", style=META_KEY)
+    else:
+        t.append("  listening...", style=LABEL_DIM)
+
+    # Fill remaining height
+    remaining = max(0, wf_height - 1)
+    for _ in range(remaining):
+        t.append("\n")
+
+    # Meta line
+    meta_items: list[tuple[str, str]] = [("engine", engine)]
+    if filename:
+        meta_items.append(("file", filename))
+    if captured:
+        meta_items.append(("captured", str(len(captured))))
+    if gen_status:
+        meta_items.append(("status", gen_status))
+
+    return [t, _meta_line(meta_items)]
 
 
 # ── Barra de estado y controles ───────────────────────────────────────────────
@@ -391,6 +430,9 @@ def _controls_bar(snap: dict) -> Text:
     """Atajos de teclado estilo kbd + cursor parpadeante."""
     cursor = "▌" if _blink() else " "
 
+    if snap.get("input_mode"):
+        return _input_prompt_bar(snap)
+
     t = Text()
     t.append("  ")
 
@@ -399,19 +441,74 @@ def _controls_bar(snap: dict) -> Text:
         t.append(label, style=META_VAL)
         t.append("]", style=SEP_COLOR)
 
-    key("space")
-    t.append(" pause", style=META_KEY)
-    t.append("   ", style=META_KEY)
-    key("[")
-    key("]")
-    t.append(" speed", style=META_KEY)
-    t.append("   ", style=META_KEY)
-    key("m")
-    t.append(" mode", style=META_KEY)
-    t.append("   ", style=META_KEY)
+    phase = snap.get("compose_phase", "")
+
+    if phase == "loaded":
+        key("l")
+        t.append(" replay", style=META_KEY)
+        t.append("  ", style=META_KEY)
+        key("g")
+        t.append(" generate", style=META_KEY)
+        t.append("  ", style=META_KEY)
+        key("c")
+        t.append(" clear", style=META_KEY)
+    elif phase == "listening":
+        t.append(" listening...", style=f"bold {RIFF_COLOR}")
+    elif phase == "generated":
+        key("l")
+        t.append(" listen", style=META_KEY)
+        t.append("  ", style=META_KEY)
+        key("s")
+        t.append(" save", style=META_KEY)
+        t.append("  ", style=META_KEY)
+        key("p")
+        t.append(" play mix", style=META_KEY)
+        t.append("  ", style=META_KEY)
+        key("g")
+        t.append(" regenerate", style=META_KEY)
+        t.append("  ", style=META_KEY)
+        key("c")
+        t.append(" clear", style=META_KEY)
+    else:
+        key("space")
+        t.append(" pause", style=META_KEY)
+        t.append("  ", style=META_KEY)
+        key("f")
+        t.append(" load", style=META_KEY)
+        t.append("  ", style=META_KEY)
+        key("g")
+        t.append(" generate", style=META_KEY)
+        t.append("  ", style=META_KEY)
+        key("c")
+        t.append(" clear", style=META_KEY)
+        t.append("  ", style=META_KEY)
+        key("m")
+        t.append(" mode", style=META_KEY)
+
+    t.append("  ", style=META_KEY)
     key("q")
     t.append(" quit", style=META_KEY)
     t.append(f"  {cursor}", style=f"bold {YOU_COLOR}")
+
+    return t
+
+
+def _input_prompt_bar(snap: dict) -> Text:
+    """Show file path input with blinking cursor."""
+    cursor = "▌" if _blink() else " "
+    buf = snap.get("input_buffer", "")
+
+    t = Text()
+    t.append("  file: ", style=f"bold {RIFF_COLOR}")
+    t.append(buf, style=META_VAL)
+    t.append(cursor, style=f"bold {YOU_COLOR}")
+    t.append("   ", style=META_KEY)
+    t.append("[tab]", style=SEP_COLOR)
+    t.append(" complete  ", style=META_KEY)
+    t.append("[enter]", style=SEP_COLOR)
+    t.append(" load  ", style=META_KEY)
+    t.append("[esc]", style=SEP_COLOR)
+    t.append(" cancel", style=META_KEY)
 
     return t
 
@@ -469,6 +566,12 @@ class KeyboardHandler:
         self.state = state
         self._thread: threading.Thread | None = None
         self._original: list | None = None
+        self._source_audio = None   # loaded MIDI audio (np.ndarray)
+        self._generated_audio = None  # generated accompaniment audio (np.ndarray)
+        self._source_song = None    # loaded SongData (MIDI only)
+        self._timed_chords = None   # extracted TimedChord list (MIDI only)
+        self._source_type = ""      # "midi" or "audio"
+        self._save_dir: str = "."   # directory for saving WAV files
 
     def start(self) -> None:
         if not sys.stdin.isatty():
@@ -506,18 +609,364 @@ class KeyboardHandler:
                 break
 
     def _handle(self, ch: str) -> None:
+        if self.state.snapshot()["input_mode"]:
+            self._handle_input(ch)
+            return
         if ch == " ":
             self.state.toggle_mute()
         elif ch in ("m", "M"):
             self.state.next_mode()
         elif ch in ("t", "T"):
             self.state.next_timbre()
+        elif ch in ("e", "E"):
+            self.state.next_engine()
+        elif ch in ("q", "Q", "\x03", "\x04"):
+            self.state.update(running=False)
         elif ch == "[":
             self.state.speed_down()
         elif ch == "]":
             self.state.speed_up()
-        elif ch in ("q", "Q", "\x03", "\x04"):
-            self.state.update(running=False)
+        elif self.state.snapshot()["mode"] == "COMPOSE":
+            self._handle_compose(ch)
+
+    def _handle_compose(self, ch: str) -> None:
+        phase = self.state.snapshot()["compose_phase"]
+        if ch in ("f", "F"):
+            self.state.start_input("file")
+        elif ch in ("c", "C"):
+            self._clear_compose()
+        elif phase == "":
+            if ch in ("g", "G"):
+                self._trigger_generate()
+        elif phase in ("loaded", "generated"):
+            if ch in ("l", "L"):
+                self._listen_source()
+            elif ch in ("g", "G"):
+                if self._source_type == "midi" and self._timed_chords:
+                    self._generate_from_file()
+                else:
+                    self._trigger_generate()
+            elif phase == "generated" and ch in ("s", "S"):
+                self._save_audio()
+            elif phase == "generated" and ch in ("p", "P"):
+                self._play_together()
+
+    def _clear_compose(self) -> None:
+        self.state.clear_chords()
+        self._source_song = None
+        self._source_audio = None
+        self._generated_audio = None
+        self._timed_chords = None
+        self._source_type = ""
+        self.state.update(compose_phase="", attached_file="")
+
+    def _listen_source(self) -> None:
+        if self._source_audio is None:
+            return
+        self.state.update(compose_phase="listening", capture_enabled=False)
+        if self._source_type == "audio":
+            threading.Thread(
+                target=self._feed_audio_to_analyzer,
+                daemon=True,
+                name="riff-listen-audio",
+            ).start()
+        else:
+            threading.Thread(
+                target=self._play_midi_source,
+                daemon=True,
+                name="riff-listen-midi",
+            ).start()
+
+    def _play_midi_source(self) -> None:
+        from riff.audio.midi_feeder import MidiFeeder
+        from riff.audio.song import SongPlayer
+        import time as _t
+
+        feeder = MidiFeeder(self.state, self._source_song, audio=self._source_audio)
+        player = SongPlayer(self._source_audio)
+        player.start()
+
+        start = _t.time()
+        while not feeder.is_finished(_t.time() - start):
+            if not self.state.snapshot()["running"]:
+                break
+            feeder.tick(_t.time() - start)
+            _t.sleep(0.05)
+
+        _t.sleep(0.3)
+        player.stop()
+        self._finish_listening()
+
+    def _feed_audio_to_analyzer(self) -> None:
+        from riff.audio.capture import BLOCK_SIZE, SAMPLE_RATE
+        from riff.audio.song import SongPlayer
+        import time as _t
+
+        audio = self._source_audio
+        q = self.state.audio_queue
+        if audio is None:
+            self._finish_listening()
+            return
+
+        self.state.update(capture_enabled=True)
+
+        player = SongPlayer(audio)
+        player.start()
+
+        if q is not None:
+            block_dur = BLOCK_SIZE / SAMPLE_RATE
+            total_blocks = len(audio) // BLOCK_SIZE
+            for i in range(total_blocks):
+                if not self.state.snapshot()["running"]:
+                    break
+                block = audio[i * BLOCK_SIZE:(i + 1) * BLOCK_SIZE]
+                try:
+                    q.put_nowait(block)
+                except Exception:
+                    pass
+                _t.sleep(block_dur)
+        else:
+            duration = len(audio) / SAMPLE_RATE
+            self._sleep_interruptible(duration)
+
+        self._sleep_interruptible(0.3)
+        player.stop()
+        self._finish_listening()
+
+    def _finish_listening(self) -> None:
+        prev_phase = "generated" if self._generated_audio is not None else "loaded"
+        self.state.update(
+            note="—",
+            compose_phase=prev_phase,
+            capture_enabled=True,
+            status_msg="Finished — [l] listen  [g] generate",
+        )
+
+    def _generate_from_file(self) -> None:
+        if not self._timed_chords:
+            return
+        threading.Thread(
+            target=self._do_generate_timed,
+            daemon=True,
+            name="riff-generate",
+        ).start()
+
+    def _do_generate_timed(self) -> None:
+        from riff.ai.phrase import PhraseEngine
+        from riff.ai.generate import _notes_to_midi
+        from riff.audio.song import SongData
+
+        self.state.update(gen_status="generating...", status_msg="Generating...")
+        try:
+            engine = PhraseEngine()
+            bpm = int(self._source_song.bpm) if self._source_song else 120
+            notes = engine.generate_timed(self._timed_chords, bpm=bpm)
+            midi = _notes_to_midi(notes, bpm)
+            song = SongData(notes=notes, bpm=bpm, _midi=midi)
+            audio = song.render_audio()
+            self._generated_audio = audio if len(audio) > 0 else None
+            self.state.update(
+                compose_phase="generated",
+                gen_status="done",
+                gen_note_count=len(notes),
+                gen_duration=song.total_duration,
+                status_msg=f"{len(notes)} notes — [l] listen  [s] save  [p] play mix  [g] regenerate",
+            )
+        except Exception as exc:
+            self.state.update(gen_status="", status_msg=f"Generate error: {exc}")
+
+    def _handle_input(self, ch: str) -> None:
+        if ch == "\x1b":  # Escape
+            self.state.cancel_input()
+        elif ch == "\n":  # Enter
+            self._confirm_file_input()
+        elif ch == "\t":  # Tab
+            self._tab_complete()
+        elif ch == "\x7f":  # Backspace
+            current = self.state.snapshot()["input_buffer"]
+            self.state.update(input_buffer=current[:-1])
+        elif ch.isprintable():
+            current = self.state.snapshot()["input_buffer"]
+            self.state.update(input_buffer=current + ch)
+
+    def _tab_complete(self) -> None:
+        from .file_input import complete_path
+
+        current = self.state.snapshot()["input_buffer"]
+        matches = complete_path(current)
+        if len(matches) == 1:
+            self.state.update(input_buffer=matches[0])
+        elif matches:
+            prefix = os.path.commonprefix(matches)
+            if prefix:
+                self.state.update(input_buffer=prefix)
+
+    def _save_audio(self) -> None:
+        if self._generated_audio is None:
+            self.state.update(status_msg="No audio to save — generate first")
+            return
+        from riff.audio.mix import save_wav, mix_audio
+
+        if self._source_audio is not None:
+            audio = mix_audio(self._source_audio, self._generated_audio)
+        else:
+            audio = self._generated_audio
+
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        path = os.path.join(self._save_dir, f"riff_{timestamp}.wav")
+        try:
+            save_wav(audio, path)
+            self.state.update(status_msg=f"Saved → {os.path.basename(path)}")
+        except Exception as exc:
+            self.state.update(status_msg=f"Save error: {exc}")
+
+    def _play_together(self) -> None:
+        if self._source_audio is None or self._generated_audio is None:
+            self.state.update(status_msg="No audio to mix — load a file and generate first")
+            return
+        from riff.audio.mix import mix_audio
+
+        mixed = mix_audio(self._source_audio, self._generated_audio)
+        self.state.update(status_msg="Playing mix...")
+        threading.Thread(
+            target=self._play_mixed,
+            args=(mixed,),
+            daemon=True,
+            name="riff-play-mix",
+        ).start()
+
+    def _play_mixed(self, audio) -> None:
+        from riff.audio.song import SongPlayer, SAMPLE_RATE
+        import time as _t
+
+        duration = len(audio) / SAMPLE_RATE
+        player = SongPlayer(audio)
+        player.start()
+        self._sleep_interruptible(duration + 0.3)
+        player.stop()
+        self.state.update(status_msg="Mix playback finished")
+
+    def _sleep_interruptible(self, seconds: float) -> None:
+        import time as _t
+        end = _t.time() + seconds
+        while _t.time() < end:
+            if not self.state.snapshot()["running"]:
+                return
+            _t.sleep(min(0.1, end - _t.time()))
+
+    def _confirm_file_input(self) -> None:
+        path = self.state.confirm_input()
+        self._confirm_file_input_path(path)
+
+    def _confirm_file_input_path(self, path: str) -> None:
+        if not os.path.isfile(path):
+            self.state.update(status_msg=f"File not found: {path}", compose_phase="")
+            return
+        ext = os.path.splitext(path)[1].lower()
+        midi_exts = {".mid", ".midi"}
+        try:
+            self._generated_audio = None
+            self.state.clear_chords()
+            if ext in midi_exts:
+                self._load_midi(path)
+            else:
+                self._load_audio(path)
+        except Exception as exc:
+            self.state.update(status_msg=f"Load error: {exc}", compose_phase="")
+
+    def _load_midi(self, path: str) -> None:
+        from riff.audio.song import SongData
+        from riff.audio.midi_feeder import extract_timed_chords
+        song = SongData.from_file(path)
+        audio = song.render_audio()
+        self._source_song = song
+        self._source_audio = audio if len(audio) > 0 else None
+        self._timed_chords = extract_timed_chords(song)
+        self._source_type = "midi"
+        self.state.update(
+            attached_file=path,
+            compose_phase="loaded",
+            status_msg=f"Loaded {os.path.basename(path)}",
+        )
+        self._listen_source()
+
+    def _load_audio(self, path: str) -> None:
+        import numpy as np
+        from riff.audio.capture import SAMPLE_RATE
+        import warnings
+        try:
+            import soundfile as sf
+            audio, sr = sf.read(path, dtype="float32", always_2d=False)
+            if audio.ndim > 1:
+                audio = audio[:, 0]
+            if sr != SAMPLE_RATE:
+                import librosa
+                audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
+        except Exception:
+            import librosa
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                audio, _ = librosa.load(path, sr=SAMPLE_RATE, mono=True)
+        self._source_audio = audio.astype(np.float32) if len(audio) > 0 else None
+        self._source_song = None
+        self._timed_chords = None
+        self._source_type = "audio"
+        self.state.update(
+            attached_file=path,
+            compose_phase="loaded",
+            status_msg=f"Loaded {os.path.basename(path)}",
+        )
+        self._listen_source()
+
+    def _trigger_generate(self) -> None:
+        snap = self.state.snapshot()
+        chords = snap["captured_chords"]
+        if not chords:
+            self.state.update(status_msg="No chords captured — play something first")
+            return
+        if snap["gen_status"] == "generating...":
+            return
+
+        threading.Thread(
+            target=self._generate_and_play,
+            args=(chords, snap["engine"], snap.get("bpm", 120.0)),
+            daemon=True,
+            name="riff-generate",
+        ).start()
+
+    def _generate_and_play(self, chords: list[str], engine: str, bpm: float) -> None:
+        from riff.ai.generate import generate_song, select_progression
+
+        self.state.update(gen_status="generating...", status_msg="Generating melody...")
+        try:
+            unique = select_progression(chords)
+            use_bpm = int(bpm) if bpm > 0 else 120
+            progression = " | ".join(unique)
+            song = generate_song(progression, bars=4, bpm=use_bpm, engine=engine)
+            audio = song.render_audio()
+            self._generated_audio = audio if len(audio) > 0 else None
+
+            self.state.update(
+                gen_status="playing",
+                gen_note_count=len(song.notes),
+                gen_duration=song.total_duration,
+                status_msg=f"Playing {len(song.notes)} notes ({song.total_duration:.1f}s)",
+            )
+
+            from riff.audio.song import SongPlayer
+
+            player = SongPlayer(audio)
+            player.start()
+            self._sleep_interruptible(song.total_duration + 0.3)
+            player.stop()
+
+            self.state.update(
+                gen_status="done",
+                compose_phase="generated",
+                status_msg="Melody finished — [s] save  [p] play mix  [g] regenerate",
+            )
+        except Exception as exc:
+            self.state.update(gen_status="", status_msg=f"Generate error: {exc}")
 
 
 # ── Controlador principal del display ────────────────────────────────────────
