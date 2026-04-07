@@ -100,3 +100,5 @@ class TestFileLoadFlow:
 
         snap = state.snapshot()
         assert snap["compose_phase"] == "listening"
+        state.update(running=False)
+        time.sleep(0.15)
