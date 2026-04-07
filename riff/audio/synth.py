@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import pathlib
 
 import numpy as np
@@ -15,10 +16,17 @@ def render(midi: pretty_midi.PrettyMIDI, sf2_path: str = SF2_PATH) -> np.ndarray
     try:
         import fluidsynth
 
+        synth_midi = copy.deepcopy(midi)
+        synth_midi.instruments = [
+            inst for inst in synth_midi.instruments if not inst.is_drum
+        ]
+        for inst in synth_midi.instruments:
+            inst.program = 0
+
         fs = fluidsynth.Synth(samplerate=float(SAMPLE_RATE))
         sfid = fs.sfload(sf2_path)
         try:
-            audio = midi.fluidsynth(fs=SAMPLE_RATE, synthesizer=fs, sfid=sfid)
+            audio = synth_midi.fluidsynth(fs=SAMPLE_RATE, synthesizer=fs, sfid=sfid)
         finally:
             fs.delete()
         return audio.astype(np.float32)
