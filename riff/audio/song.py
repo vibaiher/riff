@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import os
 import time as _time
 from collections.abc import Callable
@@ -28,6 +29,12 @@ class SongData:
     notes: list[SongNote] = field(default_factory=list)
     bpm: float = 120.0
     _midi: pretty_midi.PrettyMIDI | None = field(default=None, repr=False, compare=False)
+    _starts: list[float] = field(default_factory=list, init=False, repr=False, compare=False)
+
+    def _ensure_index(self) -> list[float]:
+        if not self._starts and self.notes:
+            self._starts = [n.start for n in self.notes]
+        return self._starts
 
     @property
     def total_duration(self) -> float:
@@ -36,19 +43,31 @@ class SongData:
         return max(n.start + n.duration for n in self.notes)
 
     def note_at_or_before(self, time: float) -> SongNote | None:
-        result = None
-        for n in self.notes:
-            if n.start <= time:
-                result = n
-            else:
-                break
-        return result
+        starts = self._ensure_index()
+        if not starts:
+            return None
+        idx = bisect.bisect_right(starts, time) - 1
+        return self.notes[idx] if idx >= 0 else None
 
     def notes_between(self, start: float, end: float) -> list[SongNote]:
-        return [n for n in self.notes if start <= n.start < end]
+        starts = self._ensure_index()
+        if not starts:
+            return []
+        lo = bisect.bisect_left(starts, start)
+        hi = bisect.bisect_left(starts, end)
+        return self.notes[lo:hi]
 
     def notes_at(self, time: float) -> list[SongNote]:
-        return [n for n in self.notes if n.start <= time < n.start + n.duration]
+        starts = self._ensure_index()
+        if not starts:
+            return []
+        hi = bisect.bisect_right(starts, time)
+        result = []
+        for i in range(hi):
+            n = self.notes[i]
+            if n.start <= time < n.start + n.duration:
+                result.append(n)
+        return result
 
     def render_audio(self) -> np.ndarray:
         if self._midi is None or not self.notes:
@@ -178,6 +197,12 @@ class SongPlayer:
 
             sd.stop()
             self._playing = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.stop()
 
     def _play_from(self, position: float) -> None:
         sample_offset = int(position * SAMPLE_RATE)

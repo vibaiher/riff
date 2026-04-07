@@ -36,6 +36,10 @@ def get_engine(name: str) -> MelodyEngine:
     return _registry[name]
 
 
+def unregister_engine(name: str) -> None:
+    _registry.pop(name, None)
+
+
 def list_engines() -> list[str]:
     return list(_registry.keys())
 

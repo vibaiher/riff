@@ -2,9 +2,18 @@
 
 import random
 
+import pytest
+
 from riff.ai.phrase import PhraseEngine
 from riff.audio.chords import Chord, parse_progression
 from riff.audio.song import SongNote
+
+
+@pytest.fixture(autouse=True)
+def _isolate_random():
+    state = random.getstate()
+    yield
+    random.setstate(state)
 
 
 class TestPhraseEngine:
