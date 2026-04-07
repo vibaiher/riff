@@ -196,7 +196,7 @@ class ComposeCommands:
             use_bpm = int(bpm) if bpm > 0 else 120
             progression = " | ".join(unique)
             song = generate_song(progression, bars=4, bpm=use_bpm, engine=engine)
-            audio = song.render_audio()
+            audio = song.render_audio(guitar=True)
             self.generated_audio = audio if len(audio) > 0 else None
             self._state.update(
                 gen_status="playing",
@@ -241,7 +241,7 @@ class ComposeCommands:
             notes = engine.generate_timed(self._timed_chords, bpm=bpm)
             midi = _notes_to_midi(notes, bpm)
             song = SongData(notes=notes, bpm=bpm, _midi=midi)
-            audio = song.render_audio()
+            audio = song.render_audio(guitar=True)
             self.generated_audio = audio if len(audio) > 0 else None
             self._state.update(
                 compose_phase="generated",
