@@ -8,8 +8,8 @@ import numpy as np
 import pretty_midi
 import pytest
 
+from riff.core.commands import ComposeCommands
 from riff.core.state import AppState
-from riff.ui.display import KeyboardHandler
 
 
 def _make_midi(tmp_dir: str) -> str:
@@ -46,10 +46,10 @@ class TestComposePhase:
             s.update(running=False)
         time.sleep(0.2)
 
-    def _make(self, **kwargs) -> tuple[AppState, KeyboardHandler]:
+    def _make(self, **kwargs) -> tuple[AppState, ComposeCommands]:
         state = AppState(**kwargs)
         self._states.append(state)
-        return state, KeyboardHandler(state)
+        return state, ComposeCommands(state)
 
     def test_defaults_to_empty(self):
         state = AppState()
@@ -57,93 +57,81 @@ class TestComposePhase:
         assert state.snapshot()["compose_phase"] == ""
 
     def test_loading_file_auto_listens(self):
-        state, handler = self._make(mode_index=1)
+        state, cmds = self._make(mode_index=1)
         with tempfile.TemporaryDirectory() as tmp:
             path = _make_midi(tmp)
 
-            handler._confirm_file_input_path(path)
+            cmds.load_file(path)
 
             snap = state.snapshot()
             assert snap["compose_phase"] == "listening"
-            assert handler._timed_chords is not None
-            assert len(handler._timed_chords) > 0
+            assert cmds._timed_chords is not None
+            assert len(cmds._timed_chords) > 0
 
-    def test_l_in_loaded_sets_listening(self):
-        state, handler = self._make(mode_index=1)
+    def test_listen_in_loaded_sets_listening(self):
+        state, cmds = self._make(mode_index=1)
         state.update(compose_phase="loaded")
-        handler._source_song = _dummy_song()
-        handler._source_audio = np.zeros(1000, dtype=np.float32)
+        cmds._source_song = _dummy_song()
+        cmds.source_audio = np.zeros(1000, dtype=np.float32)
+        cmds.source_type = "midi"
 
-        handler._handle("l")
+        cmds.listen_source()
 
         assert state.snapshot()["compose_phase"] == "listening"
 
-    def test_g_in_loaded_sets_generated(self):
-        state, handler = self._make(mode_index=1)
+    def test_generate_from_file_sets_generated(self):
+        state, cmds = self._make(mode_index=1)
         state.update(compose_phase="loaded")
-        handler._timed_chords = [_dummy_timed_chord()]
-        handler._source_type = "midi"
-        handler._source_song = _dummy_song()
+        cmds._timed_chords = [_dummy_timed_chord()]
+        cmds.source_type = "midi"
+        cmds._source_song = _dummy_song()
 
-        handler._handle("g")
+        cmds.generate_from_file()
 
         time.sleep(0.5)
         assert state.snapshot()["compose_phase"] == "generated"
-        assert handler._generated_audio is not None
+        assert cmds.generated_audio is not None
 
-    def test_s_in_generated_saves(self):
-        state, handler = self._make(mode_index=1)
-        state.update(compose_phase="generated")
-        handler._generated_audio = np.array([0.5, -0.5], dtype=np.float32)
+    def test_save_in_generated(self):
+        state, cmds = self._make(mode_index=1)
+        cmds.generated_audio = np.array([0.5, -0.5], dtype=np.float32)
 
         with tempfile.TemporaryDirectory() as tmp:
-            handler._save_dir = tmp
-            handler._handle("s")
+            cmds._save_dir = tmp
+            cmds.save()
 
             wav_files = [f for f in os.listdir(tmp) if f.endswith(".wav")]
             assert len(wav_files) == 1
 
-    def test_p_in_generated_plays_mix(self):
-        state, handler = self._make(mode_index=1)
-        state.update(compose_phase="generated")
-        handler._source_audio = np.array([0.3], dtype=np.float32)
-        handler._generated_audio = np.array([0.2], dtype=np.float32)
+    def test_play_mix_in_generated(self):
+        state, cmds = self._make(mode_index=1)
+        cmds.source_audio = np.array([0.3], dtype=np.float32)
+        cmds.generated_audio = np.array([0.2], dtype=np.float32)
 
-        handler._handle("p")
+        cmds.play_mix()
 
         assert "mix" in state.snapshot()["status_msg"].lower() or "playing" in state.snapshot()["status_msg"].lower()
 
-    def test_l_in_generated_listens_again(self):
-        state, handler = self._make(mode_index=1)
+    def test_listen_in_generated_listens_again(self):
+        state, cmds = self._make(mode_index=1)
         state.update(compose_phase="generated")
-        handler._source_song = _dummy_song()
-        handler._source_audio = np.zeros(1000, dtype=np.float32)
+        cmds._source_song = _dummy_song()
+        cmds.source_audio = np.zeros(1000, dtype=np.float32)
+        cmds.source_type = "midi"
 
-        handler._handle("l")
+        cmds.listen_source()
 
         assert state.snapshot()["compose_phase"] == "listening"
 
-    def test_c_clears_back_to_empty(self):
-        state, handler = self._make(mode_index=1)
+    def test_clear_resets_to_empty(self):
+        state, cmds = self._make(mode_index=1)
         state.update(compose_phase="loaded")
-        handler._timed_chords = [_dummy_timed_chord()]
-        handler._source_audio = np.zeros(100, dtype=np.float32)
+        cmds._timed_chords = [_dummy_timed_chord()]
+        cmds.source_audio = np.zeros(100, dtype=np.float32)
 
-        handler._handle("c")
+        cmds.clear()
 
         snap = state.snapshot()
         assert snap["compose_phase"] == ""
         assert snap["attached_file"] == ""
-        assert handler._timed_chords is None
-
-    def test_s_does_nothing_in_loaded(self):
-        state, handler = self._make(mode_index=1)
-        state.update(compose_phase="loaded")
-        handler._generated_audio = np.array([0.5], dtype=np.float32)
-
-        with tempfile.TemporaryDirectory() as tmp:
-            handler._save_dir = tmp
-            handler._handle("s")
-
-            wav_files = [f for f in os.listdir(tmp) if f.endswith(".wav")]
-            assert len(wav_files) == 0
+        assert cmds._timed_chords is None

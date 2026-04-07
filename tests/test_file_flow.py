@@ -5,12 +5,11 @@ import time
 
 from riff.audio.midi_feeder import MidiFeeder
 from riff.audio.song import SongData, SongNote
+from riff.core.commands import ComposeCommands
 from riff.core.state import AppState
-from riff.ui.display import KeyboardHandler
 
 
 def _short_song() -> SongData:
-    """A tiny C major chord lasting 0.1s — fast for testing."""
     return SongData(
         notes=[
             SongNote(note="C", octave=4, start=0.0, duration=0.1),
@@ -68,9 +67,9 @@ class TestFileLoadFlow:
     def test_confirm_file_not_found_shows_error_and_resets_phase(self):
         state = AppState(mode_index=1)
         state.update(compose_phase="loaded")
-        kb = KeyboardHandler(state)
+        cmds = ComposeCommands(state)
 
-        kb._confirm_file_input_path("/nonexistent/path/song.mid")
+        cmds.load_file("/nonexistent/path/song.mid")
 
         snap = state.snapshot()
         assert "not found" in snap["status_msg"].lower()
@@ -81,9 +80,9 @@ class TestFileLoadFlow:
         bad_file.write_text("not a real midi")
         state = AppState(mode_index=1)
         state.update(compose_phase="loaded")
-        kb = KeyboardHandler(state)
+        cmds = ComposeCommands(state)
 
-        kb._confirm_file_input_path(str(bad_file))
+        cmds.load_file(str(bad_file))
 
         snap = state.snapshot()
         assert "error" in snap["status_msg"].lower()
@@ -91,12 +90,12 @@ class TestFileLoadFlow:
 
     def test_load_midi_auto_listens(self):
         state = AppState(mode_index=1)
-        kb = KeyboardHandler(state)
+        cmds = ComposeCommands(state)
         midi_path = os.path.join(
             os.path.dirname(__file__), "..", "riff", "assets", "zombie.mid"
         )
 
-        kb._confirm_file_input_path(midi_path)
+        cmds.load_file(midi_path)
 
         snap = state.snapshot()
         assert snap["compose_phase"] == "listening"

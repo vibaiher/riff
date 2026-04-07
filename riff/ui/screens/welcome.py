@@ -14,7 +14,7 @@ from riff.ui.palette import (
     LOGO, YOU_COLOR, RIFF_COLOR, RIFF_BORDER,
     LABEL_DIM, META_VAL, META_KEY, SEP_COLOR,
 )
-from riff.ui.welcome import fake_waveform, WelcomeScreen as WelcomeModel
+from riff.core.welcome_model import fake_waveform, WelcomeModel
 from riff.ui.widgets.waveform_display import WaveformDisplay
 
 _MODE_DESCRIPTIONS: dict[str, str] = {
