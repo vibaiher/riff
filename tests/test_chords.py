@@ -90,3 +90,15 @@ class TestParseProgression:
         assert len(chords) == 1
         assert chords[0].root == "A"
         assert chords[0].quality == "minor"
+
+    def test_sus4_and_sus2(self):
+        chords = parse_progression("Csus4 | Dsus2")
+        assert chords[0].quality == "sus4"
+        assert chords[0].notes == ["C", "F", "G"]
+        assert chords[1].quality == "sus2"
+        assert chords[1].notes == ["D", "E", "A"]
+
+    def test_dim7(self):
+        chords = parse_progression("Bdim7")
+        assert chords[0].quality == "dim7"
+        assert chords[0].notes == ["B", "D", "F", "G#"]

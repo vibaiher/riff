@@ -107,10 +107,14 @@ class AudioCapture:
         Must be as fast as possible; no heavy work here.
         """
         try:
-            # indata shape: (frames, channels) — take mono channel 0
             self.audio_queue.put_nowait(indata[:, 0].copy())
         except queue.Full:
-            pass  # silently drop if analyzer is behind
+            self._drop_count = getattr(self, "_drop_count", 0) + 1
+            if self._drop_count % 100 == 1:
+                import logging
+                logging.getLogger(__name__).debug(
+                    "Audio queue full — dropped %d blocks", self._drop_count
+                )
 
 
 class FilePlayback:

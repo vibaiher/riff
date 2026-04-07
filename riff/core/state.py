@@ -110,12 +110,25 @@ class AppState:
 
     # ── Thread-safe mutations ─────────────────────────────────────────────────
 
+    _VALID_FIELDS: set | None = field(default=None, init=False, repr=False, compare=False)
+
+    def _get_valid_fields(self) -> set:
+        cls = type(self)
+        if not hasattr(cls, '_cached_fields') or cls._cached_fields is None:
+            cls._cached_fields = {
+                f for f in self.__dataclass_fields__
+                if not f.startswith("_")
+            }
+        return cls._cached_fields
+
     def update(self, **kwargs) -> None:
         """Atomically set one or more fields."""
+        invalid = set(kwargs) - self._get_valid_fields()
+        if invalid:
+            raise ValueError(f"Unknown AppState fields: {invalid}")
         with self._lock:
             for k, v in kwargs.items():
-                if hasattr(self, k) and not k.startswith("_"):
-                    setattr(self, k, v)
+                setattr(self, k, v)
 
     def next_mode(self) -> None:
         with self._lock:
@@ -187,6 +200,7 @@ class AppState:
 
     def snapshot(self) -> dict:
         """Return a consistent, immutable copy of all state for rendering."""
+        engine_name = self.engine
         with self._lock:
             return {
                 "frequency": self.frequency,
@@ -214,7 +228,7 @@ class AppState:
                 "input_mode": self.input_mode,
                 "input_buffer": self.input_buffer,
                 "mode": self.mode,
-                "engine": self.engine,
+                "engine": engine_name,
                 "device_name": self.device_name,
                 "latency_ms": self.latency_ms,
                 "timbre": self.timbre,

@@ -43,3 +43,23 @@ class TestDetectChord:
         result = detect_chord(["C", "F#", "B"])
 
         assert result == "C"
+
+    def test_superset_matches_best_chord(self):
+        result = detect_chord(["G", "C", "E", "B"])
+
+        assert result == "Cmaj7"
+
+    def test_sus4_chord(self):
+        result = detect_chord(["C", "F", "G"])
+
+        assert result == "Csus4"
+
+    def test_sus2_chord(self):
+        result = detect_chord(["C", "D", "G"])
+
+        assert result == "Csus2"
+
+    def test_dim7_chord(self):
+        result = detect_chord(["B", "D", "F", "G#"])
+
+        assert result == "Bdim7"

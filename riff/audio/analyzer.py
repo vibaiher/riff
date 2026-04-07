@@ -13,11 +13,14 @@ Analysis schedule
 from __future__ import annotations
 
 import collections
+import logging
 import queue
 import threading
 
 import librosa
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from .capture import BLOCK_SIZE, SAMPLE_RATE
 
@@ -51,6 +54,9 @@ PITCH_FRAMES = 4
 
 # Rolling buffer length for BPM estimation (~4 seconds of audio)
 BPM_BUFFER_SAMPLES = SAMPLE_RATE * 4
+
+# Minimum samples needed for reliable BPM (~2 seconds)
+BPM_MIN_SAMPLES = SAMPLE_RATE * 2
 
 # Rolling buffer for the waveform display (~300 ms)
 WAVEFORM_BUFFER_SAMPLES = SAMPLE_RATE // 3
@@ -232,15 +238,18 @@ class AudioAnalyzer:
             # Use median of voiced frames to suppress transient noise
             voiced = f0[voiced_flag & ~np.isnan(f0)]
             return float(np.median(voiced)) if len(voiced) > 0 else None
-        except Exception:
+        except Exception as exc:
+            logger.debug("Pitch detection failed: %s", exc)
             return None
 
     def _estimate_bpm(self) -> float:
         """Beat-track the rolling BPM buffer (~4 s of audio)."""
+        if len(self._bpm_buf) < BPM_MIN_SAMPLES:
+            return 0.0
         try:
             audio = np.array(self._bpm_buf, dtype=np.float32)
             tempo, _ = librosa.beat.beat_track(y=audio, sr=SAMPLE_RATE)
-            # librosa 0.10 returns a scalar; older versions may return an array
             return float(tempo) if np.ndim(tempo) == 0 else float(tempo[0])
-        except Exception:
+        except Exception as exc:
+            logger.debug("BPM estimation failed: %s", exc)
             return 0.0

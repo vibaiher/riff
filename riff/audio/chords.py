@@ -21,7 +21,10 @@ _QUALITY_INTERVALS: dict[str, list[int]] = {
     "m7":    [0, 3, 7, 10],
     "maj7":  [0, 4, 7, 11],
     "dim":   [0, 3, 6],
+    "dim7":  [0, 3, 6, 9],
     "aug":   [0, 4, 8],
+    "sus4":  [0, 5, 7],
+    "sus2":  [0, 2, 7],
 }
 
 # Scale intervals (semitones from root)
@@ -31,9 +34,8 @@ _SCALE_INTERVALS: dict[str, list[int]] = {
 }
 
 # Regex: root (letter + optional # or b) + quality suffix
-_CHORD_RE = re.compile(r"^([A-G][#b]?)(m7|maj7|7|m|dim|aug)?$")
+_CHORD_RE = re.compile(r"^([A-G][#b]?)(m7|maj7|dim7|7|m|dim|aug|sus4|sus2)?$")
 
-# Map parsed suffix → quality key
 _SUFFIX_MAP = {
     None: "major",
     "m": "minor",
@@ -41,7 +43,10 @@ _SUFFIX_MAP = {
     "m7": "m7",
     "maj7": "maj7",
     "dim": "dim",
+    "dim7": "dim7",
     "aug": "aug",
+    "sus4": "sus4",
+    "sus2": "sus2",
 }
 
 
@@ -77,6 +82,12 @@ class Chord:
         return [_note_at(self.root, i) for i in intervals]
 
 
+_QUALITY_SUFFIX = {
+    "major": "", "minor": "m", "7": "7", "m7": "m7", "maj7": "maj7",
+    "dim": "dim", "dim7": "dim7", "aug": "aug", "sus4": "sus4", "sus2": "sus2",
+}
+
+
 def detect_chord(notes: list[str]) -> str | None:
     if not notes:
         return None
@@ -84,13 +95,24 @@ def detect_chord(notes: list[str]) -> str | None:
     if len(unique) == 1:
         return unique[0]
     note_set = {_ENHARMONIC.get(n, n) for n in unique}
+    input_roots = [_ENHARMONIC.get(n, n) for n in unique]
+    best = None
+    best_size = 0
+    for root in input_roots:
+        for quality_name, intervals in _QUALITY_INTERVALS.items():
+            chord_notes = {CHROMATIC[(_root_index(root) + i) % 12] for i in intervals}
+            if chord_notes <= note_set and len(intervals) > best_size:
+                best = root + _QUALITY_SUFFIX[quality_name]
+                best_size = len(intervals)
+    if best is not None:
+        return best
     for root in CHROMATIC:
         for quality_name, intervals in _QUALITY_INTERVALS.items():
             chord_notes = {CHROMATIC[(_root_index(root) + i) % 12] for i in intervals}
-            if note_set == chord_notes:
-                suffix = {"major": "", "minor": "m", "7": "7", "m7": "m7", "maj7": "maj7", "dim": "dim", "aug": "aug"}
-                return root + suffix[quality_name]
-    return unique[0]
+            if chord_notes <= note_set and len(intervals) > best_size:
+                best = root + _QUALITY_SUFFIX[quality_name]
+                best_size = len(intervals)
+    return best or unique[0]
 
 
 def parse_progression(text: str) -> list[Chord]:
