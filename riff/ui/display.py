@@ -520,15 +520,11 @@ class KeyboardHandler:
     """
 
     def __init__(self, state) -> None:
+        from riff.core.commands import ComposeCommands
         self.state = state
         self._thread: threading.Thread | None = None
         self._original: list | None = None
-        self._source_audio = None   # loaded MIDI audio (np.ndarray)
-        self._generated_audio = None  # generated accompaniment audio (np.ndarray)
-        self._source_song = None    # loaded SongData (MIDI only)
-        self._timed_chords = None   # extracted TimedChord list (MIDI only)
-        self._source_type = ""      # "midi" or "audio"
-        self._save_dir: str = "."   # directory for saving WAV files
+        self._cmds = ComposeCommands(state)
 
     def start(self) -> None:
         if not sys.stdin.isatty():
@@ -586,151 +582,75 @@ class KeyboardHandler:
         elif self.state.snapshot()["mode"] == "COMPOSE":
             self._handle_compose(ch)
 
+    @property
+    def _source_type(self):
+        return self._cmds.source_type
+
+    @property
+    def _source_audio(self):
+        return self._cmds.source_audio
+
+    @property
+    def _generated_audio(self):
+        return self._cmds.generated_audio
+
+    @property
+    def _source_song(self):
+        return self._cmds._source_song
+
+    @_source_song.setter
+    def _source_song(self, v):
+        self._cmds._source_song = v
+
+    @property
+    def _timed_chords(self):
+        return self._cmds._timed_chords
+
+    @_timed_chords.setter
+    def _timed_chords(self, v):
+        self._cmds._timed_chords = v
+
+    @_source_type.setter
+    def _source_type(self, v):
+        self._cmds.source_type = v
+
+    @_source_audio.setter
+    def _source_audio(self, v):
+        self._cmds.source_audio = v
+
+    @_generated_audio.setter
+    def _generated_audio(self, v):
+        self._cmds.generated_audio = v
+
+    @property
+    def _save_dir(self):
+        return self._cmds._save_dir
+
+    @_save_dir.setter
+    def _save_dir(self, v):
+        self._cmds._save_dir = v
+
     def _handle_compose(self, ch: str) -> None:
         phase = self.state.snapshot()["compose_phase"]
         if ch in ("f", "F"):
             self.state.start_input("file")
         elif ch in ("c", "C"):
-            self._clear_compose()
+            self._cmds.clear()
         elif phase == "":
             if ch in ("g", "G"):
-                self._trigger_generate()
+                self._cmds.generate()
         elif phase in ("loaded", "generated"):
             if ch in ("l", "L"):
-                self._listen_source()
+                self._cmds.listen_source()
             elif ch in ("g", "G"):
-                if self._source_type == "midi" and self._timed_chords:
-                    self._generate_from_file()
+                if self._cmds.source_type == "midi" and self._cmds._timed_chords:
+                    self._cmds.generate_from_file()
                 else:
-                    self._trigger_generate()
+                    self._cmds.generate()
             elif phase == "generated" and ch in ("s", "S"):
-                self._save_audio()
+                self._cmds.save()
             elif phase == "generated" and ch in ("p", "P"):
-                self._play_together()
-
-    def _clear_compose(self) -> None:
-        self.state.clear_chords()
-        self._source_song = None
-        self._source_audio = None
-        self._generated_audio = None
-        self._timed_chords = None
-        self._source_type = ""
-        self.state.update(compose_phase="", attached_file="")
-
-    def _listen_source(self) -> None:
-        if self._source_audio is None:
-            return
-        self.state.update(compose_phase="listening", capture_enabled=False)
-        if self._source_type == "audio":
-            threading.Thread(
-                target=self._feed_audio_to_analyzer,
-                daemon=True,
-                name="riff-listen-audio",
-            ).start()
-        else:
-            threading.Thread(
-                target=self._play_midi_source,
-                daemon=True,
-                name="riff-listen-midi",
-            ).start()
-
-    def _play_midi_source(self) -> None:
-        from riff.audio.midi_feeder import MidiFeeder
-        from riff.audio.song import SongPlayer
-        import time as _t
-
-        feeder = MidiFeeder(self.state, self._source_song, audio=self._source_audio)
-        player = SongPlayer(self._source_audio)
-        player.start()
-
-        start = _t.time()
-        while not feeder.is_finished(_t.time() - start):
-            if not self.state.snapshot()["running"]:
-                break
-            feeder.tick(_t.time() - start)
-            _t.sleep(0.05)
-
-        _t.sleep(0.3)
-        player.stop()
-        self._finish_listening()
-
-    def _feed_audio_to_analyzer(self) -> None:
-        from riff.audio.capture import BLOCK_SIZE, SAMPLE_RATE
-        from riff.audio.song import SongPlayer
-        import time as _t
-
-        audio = self._source_audio
-        q = self.state.audio_queue
-        if audio is None:
-            self._finish_listening()
-            return
-
-        self.state.update(capture_enabled=True)
-
-        player = SongPlayer(audio)
-        player.start()
-
-        if q is not None:
-            block_dur = BLOCK_SIZE / SAMPLE_RATE
-            total_blocks = len(audio) // BLOCK_SIZE
-            for i in range(total_blocks):
-                if not self.state.snapshot()["running"]:
-                    break
-                block = audio[i * BLOCK_SIZE:(i + 1) * BLOCK_SIZE]
-                try:
-                    q.put_nowait(block)
-                except Exception:
-                    pass
-                _t.sleep(block_dur)
-        else:
-            duration = len(audio) / SAMPLE_RATE
-            self._sleep_interruptible(duration)
-
-        self._sleep_interruptible(0.3)
-        player.stop()
-        self._finish_listening()
-
-    def _finish_listening(self) -> None:
-        prev_phase = "generated" if self._generated_audio is not None else "loaded"
-        self.state.update(
-            note="—",
-            compose_phase=prev_phase,
-            capture_enabled=True,
-            status_msg="Finished — [l] listen  [g] generate",
-        )
-
-    def _generate_from_file(self) -> None:
-        if not self._timed_chords:
-            return
-        threading.Thread(
-            target=self._do_generate_timed,
-            daemon=True,
-            name="riff-generate",
-        ).start()
-
-    def _do_generate_timed(self) -> None:
-        from riff.ai.phrase import PhraseEngine
-        from riff.ai.generate import _notes_to_midi
-        from riff.audio.song import SongData
-
-        self.state.update(gen_status="generating...", status_msg="Generating...")
-        try:
-            engine = PhraseEngine()
-            bpm = int(self._source_song.bpm) if self._source_song else 120
-            notes = engine.generate_timed(self._timed_chords, bpm=bpm)
-            midi = _notes_to_midi(notes, bpm)
-            song = SongData(notes=notes, bpm=bpm, _midi=midi)
-            audio = song.render_audio()
-            self._generated_audio = audio if len(audio) > 0 else None
-            self.state.update(
-                compose_phase="generated",
-                gen_status="done",
-                gen_note_count=len(notes),
-                gen_duration=song.total_duration,
-                status_msg=f"{len(notes)} notes — [l] listen  [s] save  [p] play mix  [g] regenerate",
-            )
-        except Exception as exc:
-            self.state.update(gen_status="", status_msg=f"Generate error: {exc}")
+                self._cmds.play_mix()
 
     def _handle_input(self, ch: str) -> None:
         if ch == "\x1b":  # Escape
@@ -748,7 +668,6 @@ class KeyboardHandler:
 
     def _tab_complete(self) -> None:
         from .file_input import complete_path
-
         current = self.state.snapshot()["input_buffer"]
         matches = complete_path(current)
         if len(matches) == 1:
@@ -758,172 +677,12 @@ class KeyboardHandler:
             if prefix:
                 self.state.update(input_buffer=prefix)
 
-    def _save_audio(self) -> None:
-        if self._generated_audio is None:
-            self.state.update(status_msg="No audio to save — generate first")
-            return
-        from riff.audio.mix import save_wav, mix_audio
-
-        if self._source_audio is not None:
-            audio = mix_audio(self._source_audio, self._generated_audio)
-        else:
-            audio = self._generated_audio
-
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        path = os.path.join(self._save_dir, f"riff_{timestamp}.wav")
-        try:
-            save_wav(audio, path)
-            self.state.update(status_msg=f"Saved → {os.path.basename(path)}")
-        except Exception as exc:
-            self.state.update(status_msg=f"Save error: {exc}")
-
-    def _play_together(self) -> None:
-        if self._source_audio is None or self._generated_audio is None:
-            self.state.update(status_msg="No audio to mix — load a file and generate first")
-            return
-        from riff.audio.mix import mix_audio
-
-        mixed = mix_audio(self._source_audio, self._generated_audio)
-        self.state.update(status_msg="Playing mix...")
-        threading.Thread(
-            target=self._play_mixed,
-            args=(mixed,),
-            daemon=True,
-            name="riff-play-mix",
-        ).start()
-
-    def _play_mixed(self, audio) -> None:
-        from riff.audio.song import SongPlayer, SAMPLE_RATE
-        import time as _t
-
-        duration = len(audio) / SAMPLE_RATE
-        player = SongPlayer(audio)
-        player.start()
-        self._sleep_interruptible(duration + 0.3)
-        player.stop()
-        self.state.update(status_msg="Mix playback finished")
-
-    def _sleep_interruptible(self, seconds: float) -> None:
-        import time as _t
-        end = _t.time() + seconds
-        while _t.time() < end:
-            if not self.state.snapshot()["running"]:
-                return
-            _t.sleep(min(0.1, end - _t.time()))
-
     def _confirm_file_input(self) -> None:
         path = self.state.confirm_input()
         self._confirm_file_input_path(path)
 
     def _confirm_file_input_path(self, path: str) -> None:
-        if not os.path.isfile(path):
-            self.state.update(status_msg=f"File not found: {path}", compose_phase="")
-            return
-        ext = os.path.splitext(path)[1].lower()
-        midi_exts = {".mid", ".midi"}
-        try:
-            self._generated_audio = None
-            self.state.clear_chords()
-            if ext in midi_exts:
-                self._load_midi(path)
-            else:
-                self._load_audio(path)
-        except Exception as exc:
-            self.state.update(status_msg=f"Load error: {exc}", compose_phase="")
-
-    def _load_midi(self, path: str) -> None:
-        from riff.audio.song import SongData
-        from riff.audio.midi_feeder import extract_timed_chords
-        song = SongData.from_file(path)
-        audio = song.render_audio()
-        self._source_song = song
-        self._source_audio = audio if len(audio) > 0 else None
-        self._timed_chords = extract_timed_chords(song)
-        self._source_type = "midi"
-        self.state.update(
-            attached_file=path,
-            compose_phase="loaded",
-            status_msg=f"Loaded {os.path.basename(path)}",
-        )
-        self._listen_source()
-
-    def _load_audio(self, path: str) -> None:
-        import numpy as np
-        from riff.audio.capture import SAMPLE_RATE
-        import warnings
-        try:
-            import soundfile as sf
-            audio, sr = sf.read(path, dtype="float32", always_2d=False)
-            if audio.ndim > 1:
-                audio = audio[:, 0]
-            if sr != SAMPLE_RATE:
-                import librosa
-                audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
-        except Exception:
-            import librosa
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                audio, _ = librosa.load(path, sr=SAMPLE_RATE, mono=True)
-        self._source_audio = audio.astype(np.float32) if len(audio) > 0 else None
-        self._source_song = None
-        self._timed_chords = None
-        self._source_type = "audio"
-        self.state.update(
-            attached_file=path,
-            compose_phase="loaded",
-            status_msg=f"Loaded {os.path.basename(path)}",
-        )
-        self._listen_source()
-
-    def _trigger_generate(self) -> None:
-        snap = self.state.snapshot()
-        chords = snap["captured_chords"]
-        if not chords:
-            self.state.update(status_msg="No chords captured — play something first")
-            return
-        if snap["gen_status"] == "generating...":
-            return
-
-        threading.Thread(
-            target=self._generate_and_play,
-            args=(chords, snap["engine"], snap.get("bpm", 120.0)),
-            daemon=True,
-            name="riff-generate",
-        ).start()
-
-    def _generate_and_play(self, chords: list[str], engine: str, bpm: float) -> None:
-        from riff.ai.generate import generate_song, select_progression
-
-        self.state.update(gen_status="generating...", status_msg="Generating melody...")
-        try:
-            unique = select_progression(chords)
-            use_bpm = int(bpm) if bpm > 0 else 120
-            progression = " | ".join(unique)
-            song = generate_song(progression, bars=4, bpm=use_bpm, engine=engine)
-            audio = song.render_audio()
-            self._generated_audio = audio if len(audio) > 0 else None
-
-            self.state.update(
-                gen_status="playing",
-                gen_note_count=len(song.notes),
-                gen_duration=song.total_duration,
-                status_msg=f"Playing {len(song.notes)} notes ({song.total_duration:.1f}s)",
-            )
-
-            from riff.audio.song import SongPlayer
-
-            player = SongPlayer(audio)
-            player.start()
-            self._sleep_interruptible(song.total_duration + 0.3)
-            player.stop()
-
-            self.state.update(
-                gen_status="done",
-                compose_phase="generated",
-                status_msg="Melody finished — [s] save  [p] play mix  [g] regenerate",
-            )
-        except Exception as exc:
-            self.state.update(gen_status="", status_msg=f"Generate error: {exc}")
+        self._cmds.load_file(path)
 
 
 # ── Controlador principal del display ────────────────────────────────────────
