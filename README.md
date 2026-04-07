@@ -1,6 +1,6 @@
 # RIFF — Real-time Intelligent Frequency Follower
 
-CLI Python app that listens to your instrument in real time, analyzes what you play, and helps you learn and improve. Full-screen TUI built with `rich`.
+CLI Python app that listens to your instrument in real time, analyzes what you play, and helps you learn and improve. Full-screen TUI built with `textual`.
 
 ```
 ██████╗ ██╗███████╗███████╗
@@ -31,7 +31,7 @@ For AI agents and contributors working on this codebase, read [AGENTS.md](AGENTS
 
 | Library | Role |
 |---|---|
-| `rich` | TUI: layout, panels, colors, live refresh |
+| `textual` | TUI: screens, widgets, key bindings, CSS layout |
 | `sounddevice` | Real-time audio capture (PortAudio) |
 | `librosa` | Analysis: pitch (pyin), tempo, RMS/dB |
 | `numpy` | Audio buffer processing |
@@ -59,7 +59,7 @@ uv run pytest
 uv run pytest tests/test_modes.py -k test_phase_1
 ```
 
-> **iTerm2 / Terminal.app**: on startup Riff sends `\033[9;1t` to maximize the window automatically.
+> Riff uses Textual's alternate screen mode for a fullscreen terminal experience.
 
 ---
 

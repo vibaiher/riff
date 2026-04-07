@@ -18,7 +18,7 @@ Riff is a terminal application. Its design system operates within the constraint
 
 ## Color palette
 
-The palette is extracted from the original mockup and must not change without reason. It is defined in `display.py`.
+The palette is extracted from the original mockup and must not change without reason. It is defined in `riff/ui/palette.py`.
 
 ### YOU panel
 
@@ -38,7 +38,7 @@ RIFF_BG     = "#090f0d"   # Panel background (near-black with teal tint)
 
 ### Note colors
 
-Each note maps to a color on the chromatic wheel via `_NOTE_COLORS` in `display.py`. The mapping is consistent across all contexts where a note is displayed.
+Each note maps to a color on the chromatic wheel via `NOTE_COLORS` in `riff/ui/palette.py`. The mapping is consistent across all contexts where a note is displayed.
 
 ### General background
 
@@ -84,11 +84,11 @@ The screen is divided into three vertical regions:
 
 ### Dynamic height
 
-`_panel_content_params(term_height)` calculates `wf_height` and `show_chords` on every frame based on the available terminal height. The waveform absorbs or releases rows as needed. If you add fixed rows to any panel, subtract them from the waveform height in that function.
+Layout is managed via Textual CSS. The YOU and RIFF panels use `height: 1fr` to split remaining space equally. The waveform inside each panel adapts to the available widget size dynamically. Fixed elements (header, status bar, controls) have explicit heights.
 
 ### Panel borders
 
-Panels use `rich` box drawing. YOU uses purple borders, RIFF uses teal. The mode name appears in the RIFF panel border: `─ RIFF · COMPOSE ─`.
+Panels are Textual widgets that render Rich Panel renderables internally. YOU uses purple borders, RIFF uses teal. The mode name appears in the RIFF panel title: `─ RIFF · COMPOSE ─`.
 
 ---
 
