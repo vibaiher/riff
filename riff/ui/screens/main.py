@@ -18,11 +18,8 @@ class MainScreen(Screen):
     BINDINGS = [
         Binding("space", "toggle_mute", "Pause", show=False),
         Binding("m", "next_mode", "Mode", show=False),
-        Binding("t", "next_timbre", "Timbre", show=False),
         Binding("e", "next_engine", "Engine", show=False),
         Binding("q", "quit_app", "Quit", show=False),
-        Binding("left_square_bracket", "speed_down", "Slower", show=False),
-        Binding("right_square_bracket", "speed_up", "Faster", show=False),
         Binding("f", "load_file", "Load", show=False),
         Binding("g", "generate", "Generate", show=False),
         Binding("c", "clear", "Clear", show=False),
@@ -113,11 +110,6 @@ class MainScreen(Screen):
             return
         self._state.next_mode()
 
-    def action_next_timbre(self) -> None:
-        if self._input_active:
-            return
-        self._state.next_timbre()
-
     def action_next_engine(self) -> None:
         if self._input_active:
             return
@@ -128,16 +120,6 @@ class MainScreen(Screen):
             return
         self._state.update(running=False)
         self.app.exit()
-
-    def action_speed_down(self) -> None:
-        if self._input_active:
-            return
-        self._state.speed_down()
-
-    def action_speed_up(self) -> None:
-        if self._input_active:
-            return
-        self._state.speed_up()
 
     def action_load_file(self) -> None:
         if self._input_active or not self._is_compose():

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import bisect
 import os
-import time as _time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -102,67 +100,6 @@ class SongData:
         return cls(notes=notes, bpm=bpm, _midi=midi)
 
 
-class SongTracker:
-    def __init__(self, song: SongData, clock: Callable[[], float] = _time.time) -> None:
-        self._song = song
-        self._clock = clock
-        self._start_time: float | None = None
-        self._paused = False
-        self._paused_position: float = 0.0
-        self._speed: float = 1.0
-
-    @property
-    def position(self) -> float:
-        if self._paused:
-            return self._paused_position
-        if self._start_time is None:
-            return 0.0
-        return (self._clock() - self._start_time) * self._speed
-
-    def set_speed(self, speed: float) -> None:
-        current_pos = self.position
-        self._speed = speed
-        if self._start_time is not None and not self._paused:
-            self._start_time = self._clock() - current_pos / self._speed
-
-    @property
-    def speed(self) -> float:
-        return self._speed
-
-    @property
-    def is_paused(self) -> bool:
-        return self._paused
-
-    def pause(self) -> None:
-        if not self._paused:
-            self._paused_position = self.position
-            self._paused = True
-
-    def resume(self) -> None:
-        if self._paused:
-            self._start_time = self._clock() - self._paused_position / self._speed
-            self._paused = False
-
-    @property
-    def is_finished(self) -> bool:
-        return self.position >= self._song.total_duration
-
-    def upcoming_notes(self, count: int) -> list[SongNote]:
-        pos = self.position
-        return [n for n in self._song.notes if n.start > pos][:count]
-
-    @property
-    def current_notes(self) -> list[SongNote]:
-        return self._song.notes_at(self.position)
-
-    @property
-    def song(self) -> SongData:
-        return self._song
-
-    def start(self) -> None:
-        self._start_time = self._clock()
-
-
 class SongPlayer:
     def __init__(self, audio: np.ndarray) -> None:
         self.audio = audio
@@ -213,46 +150,3 @@ class SongPlayer:
         remaining = self.audio[sample_offset:]
         sd.play(remaining, samplerate=int(SAMPLE_RATE * self._speed))
         self._playing = True
-
-
-WAVEFORM_WINDOW = SAMPLE_RATE // 3
-
-
-class SongUpdater:
-    def __init__(self, state, tracker: SongTracker, audio: np.ndarray | None = None) -> None:
-        self._state = state
-        self._tracker = tracker
-        self._audio = audio
-
-    def tick(self) -> None:
-        current = self._tracker.current_notes
-        upcoming = self._tracker.upcoming_notes(4)
-        first = current[0] if current else None
-        waveform, db = self._read_audio_chunk()
-        self._state.update(
-            song_note=first.note if first else "—",
-            song_octave=first.octave if first else 4,
-            song_position=self._tracker.position,
-            song_bpm=self._tracker.song.bpm,
-            song_upcoming=[f"{n.note}{n.octave}" for n in upcoming],
-            song_waveform=waveform,
-            song_db=db,
-            song_finished=self._tracker.is_finished,
-        )
-
-    def _read_audio_chunk(self) -> tuple[list[float], float]:
-        if self._audio is None or len(self._audio) == 0:
-            return [0.0] * WAVEFORM_POINTS, -80.0
-        pos = self._tracker.position
-        center = int(pos * SAMPLE_RATE)
-        start = max(0, center - WAVEFORM_WINDOW // 2)
-        end = min(len(self._audio), start + WAVEFORM_WINDOW)
-        chunk = self._audio[start:end]
-        if len(chunk) == 0:
-            return [0.0] * WAVEFORM_POINTS, -80.0
-        rms = float(np.sqrt(np.mean(chunk**2)))
-        db = float(20.0 * np.log10(max(rms, 1e-10)))
-        abs_chunk = np.abs(chunk)
-        segments = np.array_split(abs_chunk, WAVEFORM_POINTS)
-        wf = [float(np.max(s)) if len(s) else 0.0 for s in segments]
-        return wf, db

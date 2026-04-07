@@ -58,6 +58,18 @@ class TestRemovedResponderFields:
         "markov_learned",
         "markov_phase",
         "markov_confidence",
+        "song_note",
+        "song_octave",
+        "song_position",
+        "song_bpm",
+        "song_upcoming",
+        "song_waveform",
+        "song_db",
+        "song_speed",
+        "song_finished",
+        "timbre",
+        "input_mode",
+        "input_buffer",
     ]
 
     @pytest.mark.parametrize("key", REMOVED_KEYS)
