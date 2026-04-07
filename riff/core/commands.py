@@ -196,7 +196,7 @@ class ComposeCommands:
             use_bpm = int(bpm) if bpm > 0 else 120
             progression = " | ".join(unique)
             song = generate_song(progression, bars=4, bpm=use_bpm, engine=engine)
-            audio = song.render_audio(guitar=True)
+            audio = song.render_audio()
             self.generated_audio = audio if len(audio) > 0 else None
             self._state.update(
                 gen_status="playing",
@@ -204,14 +204,9 @@ class ComposeCommands:
                 gen_duration=song.total_duration,
                 status_msg=f"Playing {len(song.notes)} notes ({song.total_duration:.1f}s)",
             )
-            from riff.audio.song import SongPlayer
+            from riff.audio.synth import play_guitar
 
-            player = SongPlayer(audio)
-            player.start()
-            try:
-                self._sleep_interruptible(song.total_duration + 0.3)
-            finally:
-                player.stop()
+            play_guitar(song.notes, song.total_duration + 0.3)
             self._state.update(
                 gen_status="done",
                 compose_phase="generated",
@@ -241,13 +236,20 @@ class ComposeCommands:
             notes = engine.generate_timed(self._timed_chords, bpm=bpm)
             midi = _notes_to_midi(notes, bpm)
             song = SongData(notes=notes, bpm=bpm, _midi=midi)
-            audio = song.render_audio(guitar=True)
+            audio = song.render_audio()
             self.generated_audio = audio if len(audio) > 0 else None
             self._state.update(
                 compose_phase="generated",
-                gen_status="done",
+                gen_status="playing",
                 gen_note_count=len(notes),
                 gen_duration=song.total_duration,
+                status_msg=f"Playing {len(notes)} notes ({song.total_duration:.1f}s)",
+            )
+            from riff.audio.synth import play_guitar
+
+            play_guitar(notes, song.total_duration + 0.3)
+            self._state.update(
+                gen_status="done",
                 status_msg=(
                     f"{len(notes)} notes — [l] listen  [s] save  [p] play mix  [g] regenerate"
                 ),

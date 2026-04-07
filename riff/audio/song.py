@@ -67,14 +67,11 @@ class SongData:
                 result.append(n)
         return result
 
-    def render_audio(self, guitar: bool = False) -> np.ndarray:
+    def render_audio(self) -> np.ndarray:
         if self._midi is None or not self.notes:
             return np.array([], dtype=np.float32)
-        from riff.audio.synth import render_default, render_guitar
-
-        if guitar:
-            return render_guitar(self._midi)
-        return render_default(self._midi)
+        audio = self._midi.synthesize(fs=SAMPLE_RATE)
+        return audio.astype(np.float32)
 
     @classmethod
     def from_file(cls, path: str) -> SongData:
