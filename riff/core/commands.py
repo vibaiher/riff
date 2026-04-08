@@ -12,8 +12,9 @@ from .state import AppState
 
 
 class ComposeCommands:
-    def __init__(self, state: AppState) -> None:
+    def __init__(self, state: AppState, riff_player_factory=None) -> None:
         self._state = state
+        self._riff_player_factory = riff_player_factory
         self.source_audio: np.ndarray | None = None
         self.generated_audio: np.ndarray | None = None
         self.source_type: str = ""
@@ -204,9 +205,7 @@ class ComposeCommands:
                 gen_duration=song.total_duration,
                 status_msg=f"Playing {len(song.notes)} notes ({song.total_duration:.1f}s)",
             )
-            from riff.audio.synth import play_guitar
-
-            play_guitar(song.notes, song.total_duration + 0.3)
+            self._play_riff(song.notes, song.total_duration + 0.3)
             self._state.update(
                 gen_status="done",
                 compose_phase="generated",
@@ -245,9 +244,7 @@ class ComposeCommands:
                 gen_duration=song.total_duration,
                 status_msg=f"Playing {len(notes)} notes ({song.total_duration:.1f}s)",
             )
-            from riff.audio.synth import play_guitar
-
-            play_guitar(notes, song.total_duration + 0.3)
+            self._play_riff(notes, song.total_duration + 0.3)
             self._state.update(
                 gen_status="done",
                 status_msg=(
@@ -301,6 +298,14 @@ class ComposeCommands:
         finally:
             player.stop()
         self._state.update(status_msg="Mix playback finished")
+
+    def _play_riff(self, notes, duration: float) -> None:
+        if self._riff_player_factory:
+            player = self._riff_player_factory(notes, duration)
+            try:
+                player.start()
+            finally:
+                player.stop()
 
     def _sleep_interruptible(self, seconds: float) -> None:
         end = time.time() + seconds

@@ -20,7 +20,9 @@ class RiffApp(App):
         super().__init__(**kwargs)
         if not hasattr(self, "state"):
             self.state = AppState()
-        self.commands = ComposeCommands(self.state)
+        from riff.audio.synth import RiffPlayer
+
+        self.commands = ComposeCommands(self.state, riff_player_factory=RiffPlayer)
         self._capture = None
         self._analyzer = None
 

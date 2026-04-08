@@ -1,27 +1,14 @@
-"""MIDI-to-audio synthesis.
-
-External MIDIs (loaded files) use pretty_midi's default synthesizer.
-RIFF-generated melodies play through FluidSynth with Gibson LP guitar soundfont.
-"""
+"""FluidSynth guitar player for RIFF-generated melodies."""
 
 from __future__ import annotations
 
 import pathlib
 import time
 
+from riff.audio.chords import _ENHARMONIC, CHROMATIC
+
 SAMPLE_RATE = 44100
 SF2_GUITAR = str(pathlib.Path(__file__).parent.parent / "assets" / "clean_guitar_bank.sf2")
-
-CHROMATIC = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-_ENHARMONIC = {
-    "Db": "C#",
-    "Eb": "D#",
-    "Fb": "E",
-    "Gb": "F#",
-    "Ab": "G#",
-    "Bb": "A#",
-    "Cb": "B",
-}
 
 
 def _note_to_pitch(note: str, octave: int) -> int:
@@ -29,29 +16,47 @@ def _note_to_pitch(note: str, octave: int) -> int:
     return CHROMATIC.index(canonical) + 12 * (octave + 1)
 
 
-def play_guitar(notes, total_duration: float) -> None:
-    try:
+class RiffPlayer:
+    def __init__(self, notes, total_duration: float) -> None:
+        self._notes = notes
+        self._total_duration = total_duration
+        self._fs = None
+        self._playing = False
+
+    def start(self) -> None:
         import fluidsynth
 
-        fs = fluidsynth.Synth()
-        fs.start(driver="coreaudio")
-        sfid = fs.sfload(SF2_GUITAR)
-        fs.program_select(0, sfid, 0, 0)
+        self._fs = fluidsynth.Synth()
+        self._fs.start(driver="coreaudio")
+        sfid = self._fs.sfload(SF2_GUITAR)
+        self._fs.program_select(0, sfid, 0, 0)
+        self._playing = True
 
         start = time.time()
-        for n in notes:
+        for n in self._notes:
+            if not self._playing:
+                break
             wait = n.start - (time.time() - start)
             if wait > 0:
                 time.sleep(wait)
             pitch = _note_to_pitch(n.note, n.octave)
-            fs.noteon(0, pitch, 90)
+            self._fs.noteon(0, pitch, 90)
             time.sleep(n.duration)
-            fs.noteoff(0, pitch)
+            self._fs.noteoff(0, pitch)
 
-        remaining = total_duration - (time.time() - start)
-        if remaining > 0:
-            time.sleep(remaining)
+        if self._playing:
+            remaining = self._total_duration - (time.time() - start)
+            if remaining > 0:
+                time.sleep(remaining)
 
-        fs.delete()
-    except Exception:
-        pass
+    def stop(self) -> None:
+        self._playing = False
+        if self._fs is not None:
+            self._fs.delete()
+            self._fs = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.stop()
