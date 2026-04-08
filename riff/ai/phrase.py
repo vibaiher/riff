@@ -9,13 +9,15 @@ _MIN_OCTAVE = 3
 _MAX_OCTAVE = 5
 
 _RHYTHM_PATTERNS = [
+    [(0.0, 2.0)],
+    [(0.0, 1.5), (1.5, 0.5)],
+    [(0.0, 1.0), (1.0, 1.0)],
+    [(0.0, 1.0), (1.0, 0.5), (1.5, 0.5)],
+    [(0.0, 0.5), (0.5, 1.5)],
     [(0.0, 1.0)],
-    [(0.0, 0.5), (0.5, 0.5)],
-    [(0.0, 0.75), (0.75, 0.25)],
-    [(0.0, 0.5)],
 ]
 
-_REST_PROBABILITY = 0.15
+_REST_PROBABILITY = 0.10
 
 
 def _canonical(note: str) -> str:
@@ -110,34 +112,48 @@ class PhraseEngine:
                     beat_time += beat_dur
                     continue
 
-                for offset_frac, dur_frac in rhythm:
-                    note_start = beat_time + offset_frac * beat_dur
-                    note_dur = dur_frac * beat_dur
-                    if note_start >= chord_end - 0.001:
-                        break
-                    note_dur = min(note_dur, chord_end - note_start)
-
-                    if is_first_beat and motif_idx == 0:
-                        note_name = _pick_chord_tone(chord)
-                    elif motif and motif_idx < len(motif):
-                        note_name = motif[motif_idx]
-                    else:
-                        note_name = _pick_scale_tone(chord, prev_note)
-
-                    octave = _pick_octave(prev_octave, note_name, prev_note)
-
-                    notes.append(
-                        SongNote(
-                            note=note_name,
-                            octave=octave,
-                            start=round(note_start, 4),
-                            duration=round(note_dur, 4),
+                if is_first_beat:
+                    strum_dur = beat_dur * 2
+                    strum_dur = min(strum_dur, chord_end - beat_time)
+                    octave = _pick_octave(prev_octave, chord.root, prev_note)
+                    for chord_note in chord.notes:
+                        notes.append(
+                            SongNote(
+                                note=chord_note,
+                                octave=octave,
+                                start=round(beat_time, 4),
+                                duration=round(strum_dur, 4),
+                            )
                         )
-                    )
-
-                    prev_note = note_name
+                    prev_note = chord.root
                     prev_octave = octave
-                    motif_idx += 1
+                else:
+                    for offset_frac, dur_frac in rhythm:
+                        note_start = beat_time + offset_frac * beat_dur
+                        note_dur = dur_frac * beat_dur
+                        if note_start >= chord_end - 0.001:
+                            break
+                        note_dur = min(note_dur, chord_end - note_start)
+
+                        if motif and motif_idx < len(motif):
+                            note_name = motif[motif_idx]
+                        else:
+                            note_name = _pick_scale_tone(chord, prev_note)
+
+                        octave = _pick_octave(prev_octave, note_name, prev_note)
+
+                        notes.append(
+                            SongNote(
+                                note=note_name,
+                                octave=octave,
+                                start=round(note_start, 4),
+                                duration=round(note_dur, 4),
+                            )
+                        )
+
+                        prev_note = note_name
+                        prev_octave = octave
+                        motif_idx += 1
 
                 beat_time += beat_dur
                 is_first_beat = False
