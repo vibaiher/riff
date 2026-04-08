@@ -32,17 +32,24 @@ class RiffPlayer:
         self._fs.program_select(0, sfid, 0, 0)
         self._playing = True
 
-        start = time.time()
+        events = []
         for n in self._notes:
+            pitch = _note_to_pitch(n.note, n.octave)
+            events.append((n.start, "on", pitch))
+            events.append((n.start + n.duration, "off", pitch))
+        events.sort(key=lambda e: (e[0], e[1] == "on"))
+
+        start = time.time()
+        for t, typ, pitch in events:
             if not self._playing:
                 break
-            wait = n.start - (time.time() - start)
+            wait = t - (time.time() - start)
             if wait > 0:
                 time.sleep(wait)
-            pitch = _note_to_pitch(n.note, n.octave)
-            self._fs.noteon(0, pitch, 90)
-            time.sleep(n.duration)
-            self._fs.noteoff(0, pitch)
+            if typ == "on":
+                self._fs.noteon(0, pitch, 90)
+            else:
+                self._fs.noteoff(0, pitch)
 
         if self._playing:
             remaining = self._total_duration - (time.time() - start)
